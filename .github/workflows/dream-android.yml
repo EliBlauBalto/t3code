@@ -48,6 +48,7 @@ jobs:
       - name: Keep APK in an owner-visible draft release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           apk=apps/mobile/android/app/build/outputs/apk/release/app-release.apk
           test -s "$apk"
