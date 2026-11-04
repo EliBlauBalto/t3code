@@ -153,7 +153,7 @@ export function DreamDashboard() {
                       (key === "input" || key === "questions") && counts[key] > 0
                         ? accent
                         : foreground,
-                    fontSize: compact ? 28 : large ? 52 : 28,
+                    fontSize: large ? (compact ? 40 : 52) : compact ? 24 : 28,
                     fontVariant: ["tabular-nums"],
                   }}
                 >
@@ -177,7 +177,7 @@ export function DreamDashboard() {
               numberOfLines={1}
               style={{
                 color: foreground,
-                fontSize: compact ? 30 : large ? 80 : 38,
+                fontSize: large ? (compact ? 56 : 80) : compact ? 30 : 38,
                 fontVariant: ["tabular-nums"],
                 flexShrink: 1,
               }}
