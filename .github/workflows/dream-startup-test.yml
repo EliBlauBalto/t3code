@@ -58,8 +58,8 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_7_pro
-          cores: 2
-          ram-size: 2048M
+          cores: 4
+          ram-size: 4096M
           disable-animations: true
           script: bash apps/mobile/tests/startup/run.sh /tmp/dream-apk/T3-Code-Dream.apk /tmp/dream-startup-evidence
       - name: Retain startup result and native crash logs
