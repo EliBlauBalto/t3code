@@ -29,6 +29,18 @@ adb shell getprop ro.product.cpu.abilist | tee "$output/abis.txt"
 adb shell getprop ro.dalvik.vm.native.bridge | tee "$output/native-bridge.txt"
 adb install "$apk"
 adb install "$output/test.apk"
+# SoLoader uses the host ABI for direct APK loading under Android's ARM translation.
+# Extract the unchanged ARM libraries into PackageManager's native library directory.
+if [[ "$(adb shell getprop ro.dalvik.vm.native.bridge)" == *libndk_translation* ]]; then
+  adb root
+  adb wait-for-device
+  installed_apk="$(adb shell pm path com.t3tools.t3code.dream | tr -d '\r' | sed 's/^package://')"
+  native_directory="${installed_apk%/base.apk}/lib/arm64"
+  unzip -j "$apk" 'lib/arm64-v8a/*.so' -d "$output/native-libraries" > "$output/native-extraction.txt"
+  adb shell mkdir -p "$native_directory"
+  adb push "$output/native-libraries/." "$native_directory/"
+  adb shell restorecon -R "$native_directory"
+fi
 adb logcat -c
 adb shell am instrument -w com.t3tools.startuptest/.StartupInstrumentation | tee "$output/result.txt"
 adb logcat -d -v threadtime > "$output/logcat.txt"
