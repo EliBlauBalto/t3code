@@ -112,7 +112,7 @@ it("replaces stalled startup with recovery and cancels the deadline once ready",
     await act(async () => root.render(<AppStartup load={load} />));
     expect(container.textContent).toContain("Starting T3 Code");
     await act(async () => vi.advanceTimersByTime(15_000));
-    expect(container.textContent).toContain("Startup did not finish");
+    expect(container.textContent).toContain("Startup has not finished");
     await act(async () => container.querySelector("button")!.click());
     expect(container.textContent).toBe("Workspace ready");
     await act(async () => vi.advanceTimersByTime(30_000));
@@ -138,5 +138,31 @@ it("exposes errors thrown by a loaded root before its readiness signal", async (
     expect(container.textContent).not.toContain("Starting T3 Code");
   } finally {
     act(() => root.unmount());
+  }
+});
+
+it("allows a slow startup to finish after showing recovery controls", async () => {
+  using _console = vi.spyOn(console, "error").mockImplementation(() => {});
+  const { AppStartup, useAppStartupReady } = await import("./AppStartup");
+  function ReadyApp() {
+    useAppStartupReady(true);
+    return <span>Slow workspace ready</span>;
+  }
+  let complete!: (value: { default: typeof ReadyApp }) => void;
+  const pending = new Promise<{ default: typeof ReadyApp }>((resolve) => {
+    complete = resolve;
+  });
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  vi.useFakeTimers();
+  try {
+    await act(async () => root.render(<AppStartup load={() => pending} />));
+    await act(async () => vi.advanceTimersByTime(15_000));
+    expect(container.querySelector("button")?.textContent).toBe("Try again");
+    await act(async () => complete({ default: ReadyApp }));
+    expect(container.textContent).toBe("Slow workspace ready");
+  } finally {
+    act(() => root.unmount());
+    vi.useRealTimers();
   }
 });

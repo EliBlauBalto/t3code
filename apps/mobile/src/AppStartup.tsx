@@ -67,7 +67,7 @@ export class AppStartup extends Component<{ load: AppLoader }, StartupState> {
 
   private renderContent(): ReactNode {
     if (!this.state.failed)
-      return <StartupAttempt key={this.state.attempt} Root={this.state.Root} />;
+      return <StartupAttempt key={this.state.attempt} Root={this.state.Root} retry={this.retry} />;
     return (
       <ScrollView
         contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 24, gap: 16 }}
@@ -97,20 +97,16 @@ export class AppStartup extends Component<{ load: AppLoader }, StartupState> {
   }
 }
 
-function StartupAttempt({ Root }: { Root: ComponentType }) {
+function StartupAttempt({ Root, retry }: { Root: ComponentType; retry: () => void }) {
   const [ready, setReady] = useState(false);
   const [expired, setExpired] = useState(false);
   const onReady = useCallback(() => setReady(true), []);
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- bounds startup when a native storage or auth initialization promise never settles
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- offers recovery for stalled startup without interrupting slow native initialization
   useEffect(() => {
     if (ready) return;
     const timer = setTimeout(() => setExpired(true), 15_000);
     return () => clearTimeout(timer);
   }, [ready]);
-  if (expired)
-    throw new Error(
-      "Startup did not finish within 15 seconds. Close and reopen the app if retrying does not help.",
-    );
   return (
     <StartupReadyContext.Provider value={onReady}>
       <Suspense fallback={null}>
@@ -124,9 +120,21 @@ function StartupAttempt({ Root }: { Root: ComponentType }) {
             justifyContent: "center",
             alignItems: "center",
             backgroundColor: "#141414",
+            padding: 24,
+            gap: 16,
           }}
         >
-          <Text style={{ color: "#ededed", fontSize: 20 }}>Starting T3 Code…</Text>
+          <Text style={{ color: "#ededed", fontSize: 20 }}>
+            {expired ? "T3 Code is taking longer to start" : "Starting T3 Code…"}
+          </Text>
+          {expired ? (
+            <>
+              <Text style={{ color: "#bdbdbd" }}>
+                Startup has not finished. Retrying won't clear your saved connections or settings.
+              </Text>
+              <Button title="Try again" onPress={retry} />
+            </>
+          ) : null}
         </View>
       ) : null}
     </StartupReadyContext.Provider>
