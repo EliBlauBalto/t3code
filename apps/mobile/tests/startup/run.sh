@@ -48,8 +48,8 @@ fi
 
 adb shell getprop ro.product.cpu.abilist | tee "$output/abis.txt"
 adb shell getprop ro.dalvik.vm.native.bridge | tee "$output/native-bridge.txt"
-adb install "$apk"
-adb install "$output/test.apk"
+adb install --no-incremental "$apk"
+adb install --no-incremental "$output/test.apk"
 # SoLoader uses the host ABI for direct APK loading under Android's ARM translation.
 # Extract the unchanged ARM libraries into PackageManager's native library directory.
 if [[ "$(adb shell getprop ro.dalvik.vm.native.bridge)" == *libndk_translation* ]]; then
