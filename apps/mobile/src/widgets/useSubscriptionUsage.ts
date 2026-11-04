@@ -13,7 +13,7 @@ import { createWidgetRefresher, WIDGET_REFRESH_INTERVAL } from "./subscriptionUs
  * on resume, on every connection change, and on a fixed interval while active.
  * Each environment is refreshed at most once per interval.
  */
-export function installSubscriptionUsageRefresh(): () => void {
+export function installSubscriptionUsageRefresh(isVisible = isAppActive): () => void {
   const refresh = createWidgetRefresher((environmentId: EnvironmentId) =>
     runAtomCommand(
       appAtomRegistry,
@@ -23,7 +23,7 @@ export function installSubscriptionUsageRefresh(): () => void {
     ),
   );
   const update = () => {
-    if (!isAppActive() || !appAtomRegistry.get(environmentCatalog.catalogValueAtom).isReady) return;
+    if (!isVisible() || !appAtomRegistry.get(environmentCatalog.catalogValueAtom).isReady) return;
     const connected = [...appAtomRegistry.get(environmentPresentations.presentationsAtom)]
       .filter(([, presentation]) => presentation.connection.phase === "connected")
       .map(([id]) => id);

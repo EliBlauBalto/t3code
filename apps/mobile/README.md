@@ -14,8 +14,17 @@ configuration; configure your own signing key before distributing builds. It doe
 the upstream Expo project. `vp run config:dream` inspects its configuration. The existing
 development, preview, and production variants remain available explicitly.
 
-The separate install identity is preparation for the desk dashboard; it does not itself add
-the screen saver.
+After installing, pair your servers and open **Settings > Appearance > Desk dashboard**.
+Choose the five KPIs, drag their priority order, and select projects or sessions. The first
+slot is large; four smaller slots and a separate clock complete the display. Empty slots
+are allowed. Usage and quota totals retain T3's existing machine scope.
+
+Use **Android screen saver settings** to choose **T3 Code desk dashboard**, preview it,
+and enable it while charging. Touching the screen exits normally. The display supports
+portrait and landscape, with muted dark colors and an optional monochrome accent.
+
+The manual **Personal Android Dream APK** GitHub workflow builds this variant and keeps
+the APK in a draft release on this fork. Device testing is separate from a successful build.
 
 > [!NOTE]
 > To install the released app from the App Store or Google Play, see [Mobile app](../../docs/user/install.md#mobile-app). This guide covers building it from source.

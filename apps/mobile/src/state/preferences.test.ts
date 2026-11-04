@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import { vi } from "vite-plus/test";
 import { ProviderInstanceId } from "@t3tools/contracts";
@@ -27,6 +28,9 @@ vi.mock("../lib/runtime", async () => {
 
 import { createMobilePreferencesState } from "./preferences";
 import * as MobilePreferences from "../persistence/mobile-preferences";
+import * as MobileDatabase from "../persistence/mobile-database";
+import * as MobileSecureStorage from "../persistence/mobile-secure-storage";
+import { normalizeDreamPreferences } from "../lib/dreamDashboard";
 
 function deferred<A>() {
   let resolve!: (value: A) => void;
@@ -60,6 +64,55 @@ function makePreferencesState(
 }
 
 describe("mobile preferences state", () => {
+  it.effect(
+    "keeps Dream slots and selected scope after saving and loading the existing preference store",
+    () =>
+      Effect.gen(function* () {
+        let stored: MobileDatabase.StoredPreferencesJson | null = null;
+        const database = MobileDatabase.MobileDatabase.of({
+          loadCache: () => Effect.succeed(Option.none()),
+          listCache: () => Effect.succeed([]),
+          saveCache: () => Effect.void,
+          removeCache: () => Effect.void,
+          clearCacheKind: () => Effect.void,
+          clearEnvironmentCache: () => Effect.void,
+          clearAllCaches: Effect.void,
+          inspectCaches: Effect.succeed([]),
+          loadPreferencesJson: Effect.sync(() => Option.fromNullishOr(stored)),
+          savePreferencesJson: (payload, updatedAt) =>
+            Effect.sync(() => {
+              stored = { payload, updatedAt };
+            }),
+        });
+        const secureStorage = MobileSecureStorage.MobileSecureStorage.of({
+          getItem: () => Effect.succeed(null),
+          setItem: () => Effect.void,
+          removeItem: () => Effect.void,
+        });
+        const layer = MobilePreferences.layer.pipe(
+          Layer.provide(
+            Layer.mergeAll(
+              Layer.succeed(MobileDatabase.MobileDatabase, database),
+              Layer.succeed(MobileSecureStorage.MobileSecureStorage, secureStorage),
+            ),
+          ),
+        );
+        const preferences = normalizeDreamPreferences({
+          all: false,
+          projects: ["env:project"],
+          threads: ["env:thread"],
+          slots: ["cost", "", "status", "limits", "tokens"],
+          monochrome: true,
+        });
+        const result = yield* Effect.gen(function* () {
+          const store = yield* MobilePreferences.MobilePreferencesStore;
+          yield* store.savePatch({ dreamDashboard: preferences, baseFontSize: 18 });
+          return yield* store.load;
+        }).pipe(Effect.provide(layer));
+        expect(result.dreamDashboard).toEqual(preferences);
+        expect(result.baseFontSize).toBe(18);
+      }),
+  );
   it.effect("preserves an optimistic patch when the initial load finishes later", () =>
     Effect.gen(function* () {
       const pendingLoad = deferred<MobilePreferences.Preferences>();

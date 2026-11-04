@@ -1,0 +1,58 @@
+name: Personal Android Dream APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: github.repository == 'EliBlauBalto/t3code'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      APP_VARIANT: dream
+      EXPO_NO_TELEMETRY: "1"
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - uses: actions/checkout@v6
+      - uses: voidzero-dev/setup-vp@250f29ce396baf5e8f24498e17c0dfdebabc26eb
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - run: vp i --frozen-lockfile
+      - name: Generate Android project
+        working-directory: apps/mobile
+        run: vp exec expo prebuild --platform android --no-install
+      - name: Build standalone ARM64 APK
+        working-directory: apps/mobile/android
+        run: ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a --max-workers=2
+      - name: Verify APK identity and native screen saver registration
+        run: |
+          python3 - <<'PY'
+          import os, subprocess, xml.etree.ElementTree as ET
+          analyzer = os.path.join(os.environ["ANDROID_HOME"], "cmdline-tools/latest/bin/apkanalyzer")
+          apk = "apps/mobile/android/app/build/outputs/apk/release/app-release.apk"
+          root = ET.fromstring(subprocess.check_output([analyzer, "manifest", "print", apk], text=True))
+          android = "{http://schemas.android.com/apk/res/android}"
+          assert root.get("package") == "com.t3tools.t3code.dream"
+          service = next(item for item in root.findall("application/service") if item.get(android + "name") == "expo.modules.t3nativecontrols.T3DreamService")
+          assert service.get(android + "permission") == "android.permission.BIND_DREAM_SERVICE"
+          assert service.get(android + "exported") == "true"
+          assert any(item.get(android + "name") == "android.service.dreams.DreamService" for item in service.findall("intent-filter/action"))
+          assert any(item.get(android + "name") == "android.service.dream" for item in service.findall("meta-data"))
+          print("APK package and DreamService registration verified")
+          PY
+      - name: Keep APK in an owner-visible draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apk=apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          test -s "$apk"
+          tag="dream-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          cp "$apk" T3-Code-Dream.apk
+          gh release create "$tag" T3-Code-Dream.apk --draft --target "$GITHUB_SHA" \
+            --title "T3 Code Dream ${GITHUB_RUN_NUMBER}" \
+            --notes "Personal ARM64 Android build from ${GITHUB_SHA}. Separate package com.t3tools.t3code.dream. Uses the generated local Android signing configuration; installed-phone verification is still required."
