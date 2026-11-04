@@ -1,0 +1,54 @@
+name: Dream released APK startup test
+
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Existing diagnostic release tag
+        required: true
+        default: dream-41766425794-1
+
+permissions:
+  contents: read
+
+jobs:
+  startup:
+    if: github.repository == 'EliBlauBalto/t3code'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Download the existing release without rebuilding
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE: ${{ inputs.release }}
+        run: gh release download "$RELEASE" --pattern T3-Code-Dream.apk --dir /tmp/dream-apk
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run native release startup test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          cores: 2
+          ram-size: 2048M
+          disable-animations: true
+          script: bash apps/mobile/tests/startup/run.sh /tmp/dream-apk/T3-Code-Dream.apk /tmp/dream-startup-evidence
+      - name: Retain startup result and native crash logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dream-startup-evidence
+          path: |
+            /tmp/dream-startup-evidence/*.txt
+            /tmp/dream-startup-evidence/capture/
+          if-no-files-found: warn
