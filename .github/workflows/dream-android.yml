@@ -39,7 +39,9 @@ jobs:
           GRADLE
       - name: Build standalone ARM64 APK
         working-directory: apps/mobile/android
-        run: ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a --max-workers=2
+        run: |
+          ./gradlew :t3-native-controls:compileReleaseKotlin -PreactNativeArchitectures=arm64-v8a --max-workers=2
+          ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a --max-workers=2
       - name: Verify APK identity and native screen saver registration
         run: |
           python3 - <<'PY'
