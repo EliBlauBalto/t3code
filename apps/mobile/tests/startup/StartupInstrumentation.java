@@ -41,17 +41,30 @@ public final class StartupInstrumentation extends Instrumentation {
     }, 30000);
   }
 
-  private void startDream(UiAutomation automation) {
-    try (ParcelFileDescriptor descriptor = automation.executeShellCommand("su 0 cmd dreams start-dreaming");
+  private String shell(UiAutomation automation, String command) {
+    try (ParcelFileDescriptor descriptor = automation.executeShellCommand(command);
         BufferedReader reader = new BufferedReader(new InputStreamReader(
             new ParcelFileDescriptor.AutoCloseInputStream(descriptor)))) {
       String line;
+      StringBuilder output = new StringBuilder();
       while ((line = reader.readLine()) != null) {
-        if (!line.trim().isEmpty()) throw new AssertionError(line);
+        output.append(line).append('\n');
       }
+      return output.toString().trim();
     } catch (java.io.IOException error) {
       throw new RuntimeException(error);
     }
+  }
+
+  private void startDream(UiAutomation automation) {
+    String error = shell(automation, "su 0 cmd dreams start-dreaming");
+    if (!error.isEmpty()) throw new AssertionError(error);
+  }
+
+  private boolean launcherVisible(UiAutomation automation) {
+    AccessibilityNodeInfo root = automation.getRootInActiveWindow();
+    return root != null && "com.google.android.apps.nexuslauncher".contentEquals(
+        root.getPackageName() == null ? "" : root.getPackageName());
   }
 
   private void capture(UiAutomation automation, String name) throws Exception {
@@ -149,6 +162,28 @@ public final class StartupInstrumentation extends Instrumentation {
       awaitScreen(automation, () -> startDream(automation), "Session status");
       result.putString("stage", "second Dream exit");
       awaitScreen(automation, () -> exitDream(automation), "Add environment");
+      result.putString("stage", "cold Dream start");
+      String previousPid = shell(automation, "pidof com.t3tools.t3code.dream");
+      automation.executeAndWaitForEvent(
+          () -> {
+            automation.injectInputEvent(new android.view.KeyEvent(
+                android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_HOME), true);
+            automation.injectInputEvent(new android.view.KeyEvent(
+                android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_HOME), true);
+          }, event -> launcherVisible(automation), 30000);
+      shell(automation, "am kill --user current com.t3tools.t3code.dream");
+      awaitScreen(automation, () -> startDream(automation), "Session status");
+      String dreamPid = shell(automation, "pidof com.t3tools.t3code.dream");
+      if (previousPid.isEmpty() || dreamPid.isEmpty() || previousPid.equals(dreamPid)) {
+        throw new AssertionError("Cold Dream did not start a new app process");
+      }
+      result.putString("coldDream", "PASS");
+      capture(automation, "dream-cold");
+      result.putString("stage", "app after cold Dream");
+      automation.executeAndWaitForEvent(
+          () -> exitDream(automation), event -> launcherVisible(automation), 30000);
+      awaitScreen(automation, () -> getContext().startActivity(launch), "Add environment");
+      capture(automation, "app-after-cold-dream");
       result.putString("dream", "PASS");
       passed = true;
     } catch (Throwable error) {
