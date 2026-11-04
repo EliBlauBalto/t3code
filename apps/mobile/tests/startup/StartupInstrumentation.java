@@ -68,6 +68,7 @@ public final class StartupInstrumentation extends Instrumentation {
   // Tap Wait so the app under test stays measurable; the count is reported, not hidden.
   private boolean dismissSystemDialog(UiAutomation automation, String text) {
     if (!has(text, "isn't responding") && !has(text, "isn’t responding")) return false;
+    if (!has(text, "Pixel Launcher")) throw new AssertionError("App stopped responding: " + text);
     Rect wait = textBounds(automation.getRootInActiveWindow(), "Wait");
     if (wait == null) return false;
     systemDialogs++;
