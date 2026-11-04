@@ -41,8 +41,14 @@ jobs:
       - name: Build standalone ARM64 APK
         working-directory: apps/mobile/android
         run: |
-          ./gradlew :t3-native-controls:compileReleaseKotlin -PreactNativeArchitectures=arm64-v8a --max-workers=2
-          ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a --max-workers=2
+          ./gradlew :t3-native-controls:compileReleaseKotlin -PreactNativeArchitectures=arm64-v8a --max-workers=2 --build-cache
+          ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a --max-workers=2 --build-cache
+      - name: Retain candidate APK for installed startup verification
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dream-candidate-apk
+          path: apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
       - name: Retain release JavaScript source maps for startup diagnosis
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -77,5 +83,45 @@ jobs:
           tag="dream-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           cp "$apk" T3-Code-Dream.apk
           gh release create "$tag" T3-Code-Dream.apk --draft --target "$GITHUB_SHA" \
-            --title "T3 Code Dream diagnostic ${GITHUB_RUN_NUMBER}" \
-            --notes "Diagnostic ARM64 Android build from ${GITHUB_SHA}. Adds startup recovery and fixes lost Dream settings updates. The reported splash hang and native screen saver behavior still require installed-phone verification. Separate package com.t3tools.t3code.dream; generated local Android signing configuration."
+            --title "T3 Code Dream ${GITHUB_RUN_NUMBER}" \
+            --notes "ARM64 Android build from ${GITHUB_SHA}. Excludes EAS-only native crash reporting from the standalone personal build to fix the startup failure. Separate package com.t3tools.t3code.dream; generated local Android signing configuration. Candidate remains a draft pending installed startup tests."
+
+  startup:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/download-artifact@v5
+        with:
+          name: dream-candidate-apk
+          path: /tmp/dream-apk
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Verify installed release startup and native Dream
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          cores: 2
+          ram-size: 3072M
+          disable-animations: true
+          script: bash apps/mobile/tests/startup/run.sh /tmp/dream-apk/app-release.apk /tmp/dream-startup-evidence
+      - name: Retain installed verification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dream-installed-verification
+          path: |
+            /tmp/dream-startup-evidence/*.txt
+            /tmp/dream-startup-evidence/capture/
+          if-no-files-found: warn

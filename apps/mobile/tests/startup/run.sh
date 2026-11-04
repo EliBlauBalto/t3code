@@ -41,6 +41,8 @@ if [[ "$(adb shell getprop ro.dalvik.vm.native.bridge)" == *libndk_translation* 
   adb push "$output/native-libraries/." "$native_directory/"
   adb shell restorecon -R "$native_directory"
 fi
+adb shell settings put secure screensaver_enabled 1
+adb shell settings put secure screensaver_components com.t3tools.t3code.dream/expo.modules.t3nativecontrols.T3DreamService
 adb logcat -c
 adb shell am instrument -w com.t3tools.startuptest/.StartupInstrumentation | tee "$output/result.txt"
 adb logcat -d -v threadtime > "$output/logcat.txt"
