@@ -55,6 +55,7 @@ public final class StartupInstrumentation extends Instrumentation {
   }
 
   private void capture(UiAutomation automation, String name) throws Exception {
+    automation.waitForIdle(100, 30000);
     File directory = getContext().getExternalFilesDir(null);
     String text = screenText(automation.getRootInActiveWindow());
     try (FileOutputStream file = new FileOutputStream(new File(directory, name + ".txt"))) {
@@ -66,6 +67,20 @@ public final class StartupInstrumentation extends Instrumentation {
         screenshot.compress(Bitmap.CompressFormat.PNG, 100, file);
       }
     }
+  }
+
+  private Rect textBounds(AccessibilityNodeInfo node, String text) {
+    if (node == null) return null;
+    if (text.contentEquals(node.getText() == null ? "" : node.getText())) {
+      Rect bounds = new Rect();
+      node.getBoundsInScreen(bounds);
+      return bounds;
+    }
+    for (int index = 0; index < node.getChildCount(); index++) {
+      Rect found = textBounds(node.getChild(index), text);
+      if (found != null) return found;
+    }
+    return null;
   }
 
   private void exitDream(UiAutomation automation) {
@@ -120,7 +135,11 @@ public final class StartupInstrumentation extends Instrumentation {
             if (root == null) return false;
             Rect bounds = new Rect();
             root.getBoundsInScreen(bounds);
-            return bounds.width() > bounds.height() && screenText(root).contains("Session status");
+            Rect status = textBounds(root, "Session status");
+            Rect tokens = textBounds(root, "Tokens · 24h");
+            return bounds.width() > bounds.height() && status != null && tokens != null
+                && tokens.left > status.right
+                && Math.abs(tokens.top - status.top) < Math.max(tokens.height(), status.height()) * 2;
           }, 30000);
       capture(automation, "dream-landscape");
       result.putString("stage", "touch exits Dream");
