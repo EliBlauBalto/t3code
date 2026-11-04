@@ -73,7 +73,7 @@ public final class StartupInstrumentation extends Instrumentation {
   }
 
   // The emulator's own launcher can stall on a slow runner and cover the app with a system dialog.
-  // Tap Wait so the app under test stays measurable; the count is reported, not hidden.
+  // Close only the stalled launcher; app ANRs fail and the system-dialog count is reported.
   private boolean dismissSystemDialog(UiAutomation automation, String text) {
     AccessibilityNodeInfo root = automation.getRootInActiveWindow();
     if (root != null && "android".contentEquals(root.getPackageName())
@@ -86,7 +86,7 @@ public final class StartupInstrumentation extends Instrumentation {
     }
     if (!has(text, "isn't responding") && !has(text, "isn’t responding")) return false;
     if (!has(text, "Pixel Launcher")) throw new AssertionError("App stopped responding: " + text);
-    Rect wait = textBounds(automation.getRootInActiveWindow(), "Wait");
+    Rect wait = textBounds(automation.getRootInActiveWindow(), "Close app");
     if (wait == null) return false;
     systemDialogs++;
     tap(automation, wait.centerX(), wait.centerY());
@@ -209,19 +209,28 @@ public final class StartupInstrumentation extends Instrumentation {
     for (int step = 0; step < 10; step++) {
       AccessibilityNodeInfo root = automation.getRootInActiveWindow();
       Rect bounds = textBounds(root, label);
-      Rect screen = new Rect();
-      root.getBoundsInScreen(screen);
-      if (bounds != null && !bounds.isEmpty() && screen.contains(bounds)) return;
       AccessibilityNodeInfo list = scrollable(root);
+      Rect screen = new Rect();
+      (list == null ? root : list).getBoundsInScreen(screen);
+      if (bounds != null && !bounds.isEmpty() && screen.contains(bounds)) return;
+      if (bounds != null && !bounds.isEmpty()) {
+        direction = bounds.top < screen.top ? AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD : AccessibilityNodeInfo.ACTION_SCROLL_FORWARD;
+      }
       if (list == null) throw new AssertionError("No list containing " + label);
-      automation.executeAndWaitForEvent(() -> {
-        if (!list.performAction(direction)) {
-          throw new AssertionError("Cannot scroll to " + label);
-        }
-      }, event -> event.getEventType() == android.view.accessibility.AccessibilityEvent.TYPE_VIEW_SCROLLED, 30000);
+      int action = direction;
+      try {
+        automation.executeAndWaitForEvent(() -> {
+          if (!list.performAction(action)) throw new ScrollEnd();
+        }, event -> event.getEventType() == android.view.accessibility.AccessibilityEvent.TYPE_VIEW_SCROLLED, 30000);
+      } catch (ScrollEnd end) {
+        direction = action == AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+            ? AccessibilityNodeInfo.ACTION_SCROLL_FORWARD : AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD;
+      }
     }
     throw new AssertionError("Missing control after scrolling: " + label);
   }
+
+  private static final class ScrollEnd extends RuntimeException { }
 
   private void enterText(UiAutomation automation, String label, String value) {
     AccessibilityNodeInfo input = namedNode(automation.getRootInActiveWindow(), label);
@@ -265,6 +274,7 @@ public final class StartupInstrumentation extends Instrumentation {
           .getLaunchIntentForPackage("com.t3tools.t3code.dream");
       if (launch == null) throw new AssertionError("Installed Dream launcher was not found");
       launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+      result.putString("stage", "main startup");
       automation.executeAndWaitForEvent(
           () -> getContext().startActivity(launch),
           event -> {
@@ -297,7 +307,7 @@ public final class StartupInstrumentation extends Instrumentation {
         throw new AssertionError("Focus style still renders the small dashboard tiles");
       }
       capture(automation, "dream-focus");
-      awaitScreen(automation, () -> exitDream(automation), "Focus style");
+      awaitScreen(automation, () -> exitDream(automation), "Desk dashboard");
       result.putString("stage", "Clock style selection");
       selectStyle(automation, "Clock");
       awaitScreen(automation, () -> startDream(automation), "Connect your first machine");
@@ -312,7 +322,7 @@ public final class StartupInstrumentation extends Instrumentation {
             return bounds.width() > bounds.height() && has(screenText(root), "Connect your first machine");
           }, 30000);
       capture(automation, "dream-clock-landscape");
-      awaitScreen(automation, () -> exitDream(automation), "Clock style");
+      awaitScreen(automation, () -> exitDream(automation), "Desk dashboard");
       automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
       result.putString("styles", "PASS");
       result.putString("stage", "tile selection");
@@ -447,7 +457,7 @@ public final class StartupInstrumentation extends Instrumentation {
                 throw new AssertionError("Clipped " + label + " in " + style + " " + viewport[0]);
               }
             }
-            awaitScreen(automation, () -> exitDream(automation), style + " style");
+            awaitScreen(automation, () -> exitDream(automation), "Desk dashboard");
           }
           shell(automation, "wm size reset");
           shell(automation, "wm density reset");
