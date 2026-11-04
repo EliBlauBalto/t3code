@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <queries>
+    <intent>
+      <action android:name="android.settings.DREAM_SETTINGS" />
+    </intent>
+  </queries>
   <application>
     <activity
       android:name="expo.modules.t3nativecontrols.T3DreamSettingsActivity"

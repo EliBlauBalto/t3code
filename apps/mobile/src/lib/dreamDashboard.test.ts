@@ -7,7 +7,20 @@ import {
   assignDreamSlot,
   selectDreamThreads,
   summarizeDreamThreads,
+  resolveDreamConnection,
 } from "./dreamDashboard";
+
+it("distinguishes missing setup, an empty selection, and disconnected selected machines", () => {
+  const connected = { ready: true, configured: 2, selected: 2, live: 2 };
+  expect(resolveDreamConnection({ ...connected, ready: false })).toBe("loading");
+  expect(resolveDreamConnection({ ...connected, configured: 0, selected: 0, live: 0 })).toBe(
+    "unconfigured",
+  );
+  expect(resolveDreamConnection({ ...connected, selected: 0, live: 0 })).toBe("unselected");
+  expect(resolveDreamConnection({ ...connected, live: 0 })).toBe("offline");
+  expect(resolveDreamConnection({ ...connected, live: 1 })).toBe("partial");
+  expect(resolveDreamConnection(connected)).toBe("live");
+});
 
 it("preserves empty slots and repairs invalid saved configuration without exceeding five slots", () => {
   expect(

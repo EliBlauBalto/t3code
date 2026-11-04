@@ -20,6 +20,7 @@ import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 
 public final class StartupInstrumentation extends Instrumentation {
+  private org.json.JSONArray fixture;
   private ComponentName dreamSettings() throws Exception {
     PackageManager manager = getContext().getPackageManager();
     ServiceInfo service = manager.getServiceInfo(new ComponentName("com.t3tools.t3code.dream",
@@ -44,6 +45,12 @@ public final class StartupInstrumentation extends Instrumentation {
   @Override
   public void onCreate(Bundle arguments) {
     super.onCreate(arguments);
+    try {
+      fixture = new org.json.JSONArray(new String(java.util.Base64.getDecoder().decode(
+          arguments.getString("fixture", "W10=")), java.nio.charset.StandardCharsets.UTF_8));
+    } catch (Exception error) {
+      throw new RuntimeException(error);
+    }
     start();
   }
 
@@ -163,18 +170,67 @@ public final class StartupInstrumentation extends Instrumentation {
   }
 
   private void tapText(UiAutomation automation, String text) {
-    Rect bounds = textBounds(automation.getRootInActiveWindow(), text);
+    AccessibilityNodeInfo root = automation.getRootInActiveWindow();
+    AccessibilityNodeInfo control = namedNode(root, text);
+    Rect bounds = textBounds(root, text);
+    if (control != null) {
+      bounds = new Rect();
+      control.getBoundsInScreen(bounds);
+    }
     if (bounds == null || bounds.isEmpty()) throw new AssertionError("Missing control: " + text);
     tap(automation, bounds.centerX(), bounds.centerY());
   }
 
   private void selectStyle(UiAutomation automation, String name) throws Exception {
     String label = name + " style";
+    scrollTo(automation, label, AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD);
     automation.executeAndWaitForEvent(() -> tapText(automation, label), event -> {
       if (dismissSystemDialog(automation, screenText(automation.getRootInActiveWindow()))) return false;
       AccessibilityNodeInfo node = namedNode(automation.getRootInActiveWindow(), label);
       return node != null && node.isChecked();
     }, 30000);
+  }
+
+  private AccessibilityNodeInfo scrollable(AccessibilityNodeInfo node) {
+    if (node == null) return null;
+    if (node.isScrollable()) return node;
+    for (int index = 0; index < node.getChildCount(); index++) {
+      AccessibilityNodeInfo found = scrollable(node.getChild(index));
+      if (found != null) return found;
+    }
+    return null;
+  }
+
+  private void scrollTo(UiAutomation automation, String label) throws Exception {
+    scrollTo(automation, label, AccessibilityNodeInfo.ACTION_SCROLL_FORWARD);
+  }
+
+  private void scrollTo(UiAutomation automation, String label, int direction) throws Exception {
+    for (int step = 0; step < 10; step++) {
+      AccessibilityNodeInfo root = automation.getRootInActiveWindow();
+      Rect bounds = textBounds(root, label);
+      Rect screen = new Rect();
+      root.getBoundsInScreen(screen);
+      if (bounds != null && !bounds.isEmpty() && screen.contains(bounds)) return;
+      AccessibilityNodeInfo list = scrollable(root);
+      if (list == null) throw new AssertionError("No list containing " + label);
+      automation.executeAndWaitForEvent(() -> {
+        if (!list.performAction(direction)) {
+          throw new AssertionError("Cannot scroll to " + label);
+        }
+      }, event -> event.getEventType() == android.view.accessibility.AccessibilityEvent.TYPE_VIEW_SCROLLED, 30000);
+    }
+    throw new AssertionError("Missing control after scrolling: " + label);
+  }
+
+  private void enterText(UiAutomation automation, String label, String value) {
+    AccessibilityNodeInfo input = namedNode(automation.getRootInActiveWindow(), label);
+    if (input == null) throw new AssertionError("Missing input: " + label);
+    Bundle text = new Bundle();
+    text.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value);
+    if (!input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, text)) {
+      throw new AssertionError("Cannot edit " + label);
+    }
   }
 
   private void tap(UiAutomation automation, int x, int y) {
@@ -227,12 +283,16 @@ public final class StartupInstrumentation extends Instrumentation {
       result.putString("stage", "desk dashboard settings");
       Intent settings = new Intent().setComponent(customize);
       settings.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-      awaitScreen(automation, () -> getContext().startActivity(settings), "Tap a tile to change");
+      awaitScreen(automation, () -> getContext().startActivity(settings), "Full-screen preview");
       capture(automation, "settings-tiles");
       result.putString("customize", "PASS");
+      awaitScreen(automation, () -> tapText(automation, "Full-screen preview"), "Connect your first machine");
+      capture(automation, "in-app-preview");
+      awaitScreen(automation, () -> tapText(automation, "Close preview"), "Full-screen preview");
+      result.putString("preview", "PASS");
       result.putString("stage", "Focus style selection");
       selectStyle(automation, "Focus");
-      awaitScreen(automation, () -> startDream(automation), "Session status");
+      awaitScreen(automation, () -> startDream(automation), "Connect your first machine");
       if (has(screenText(automation.getRootInActiveWindow()), "Tokens · 24h")) {
         throw new AssertionError("Focus style still renders the small dashboard tiles");
       }
@@ -240,7 +300,7 @@ public final class StartupInstrumentation extends Instrumentation {
       awaitScreen(automation, () -> exitDream(automation), "Focus style");
       result.putString("stage", "Clock style selection");
       selectStyle(automation, "Clock");
-      awaitScreen(automation, () -> startDream(automation), "Session status unavailable");
+      awaitScreen(automation, () -> startDream(automation), "Connect your first machine");
       capture(automation, "dream-clock");
       automation.executeAndWaitForEvent(
           () -> automation.setRotation(UiAutomation.ROTATION_FREEZE_90), event -> {
@@ -249,18 +309,25 @@ public final class StartupInstrumentation extends Instrumentation {
             if (root == null) return false;
             Rect bounds = new Rect();
             root.getBoundsInScreen(bounds);
-            return bounds.width() > bounds.height() && has(screenText(root), "Session status unavailable");
+            return bounds.width() > bounds.height() && has(screenText(root), "Connect your first machine");
           }, 30000);
       capture(automation, "dream-clock-landscape");
       awaitScreen(automation, () -> exitDream(automation), "Clock style");
       automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
       result.putString("styles", "PASS");
       result.putString("stage", "tile selection");
+      if (has(screenText(automation.getRootInActiveWindow()), "Large tile:")) {
+        throw new AssertionError("Clock still exposes unused tile settings");
+      }
+      selectStyle(automation, "Dashboard");
+      scrollTo(automation, "Large tile: Session status");
       awaitScreen(automation, () -> tapText(automation, "Large tile: Session status"), "Empty");
       awaitScreen(automation, () -> tapText(automation, "Cost · 24h"), "Large tile: Cost · 24h");
       awaitScreen(automation, () -> tapText(automation, "Large tile: Cost · 24h"), "Empty");
       awaitScreen(automation, () -> tapText(automation, "Session status"), "Large tile: Session status");
       result.putString("tileSelection", "PASS");
+      awaitScreen(automation, () -> getContext().startActivity(settings), "Dashboard style");
+      selectStyle(automation, "Clock");
       result.putString("stage", "cold Customize and saved style");
       automation.executeAndWaitForEvent(() -> {
         automation.injectInputEvent(new android.view.KeyEvent(
@@ -277,7 +344,7 @@ public final class StartupInstrumentation extends Instrumentation {
       capture(automation, "settings-restored");
       awaitScreen(automation, () -> getContext().startActivity(launch), "Add environment");
       result.putString("stage", "first Dream start");
-      awaitScreen(automation, () -> startDream(automation), "Session status");
+      awaitScreen(automation, () -> startDream(automation), "Connect your first machine");
       capture(automation, "dream-portrait");
       result.putString("stage", "Dream rotation");
       automation.executeAndWaitForEvent(
@@ -288,18 +355,15 @@ public final class StartupInstrumentation extends Instrumentation {
             if (root == null) return false;
             Rect bounds = new Rect();
             root.getBoundsInScreen(bounds);
-            Rect status = textBounds(root, "Session status");
-            Rect tokens = textBounds(root, "Tokens · 24h");
-            return bounds.width() > bounds.height() && status != null && tokens != null
-                && tokens.left > status.right
-                && Math.abs(tokens.top - status.top) < Math.max(tokens.height(), status.height()) * 2;
+            Rect title = textBounds(root, "Connect your first machine");
+            return bounds.width() > bounds.height() && title != null && bounds.contains(title);
           }, 30000);
       capture(automation, "dream-landscape");
       result.putString("stage", "touch exits Dream");
       awaitScreen(automation, () -> exitDream(automation), "Add environment");
       capture(automation, "after-dream");
       result.putString("stage", "second Dream start");
-      awaitScreen(automation, () -> startDream(automation), "Session status");
+      awaitScreen(automation, () -> startDream(automation), "Connect your first machine");
       result.putString("stage", "second Dream exit");
       awaitScreen(automation, () -> exitDream(automation), "Add environment");
       result.putString("stage", "cold Dream start");
@@ -312,7 +376,7 @@ public final class StartupInstrumentation extends Instrumentation {
                 android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_HOME), true);
           }, event -> launcherVisible(automation), 30000);
       shell(automation, "am force-stop com.t3tools.t3code.dream");
-      awaitScreen(automation, () -> startDream(automation), "Session status");
+      awaitScreen(automation, () -> startDream(automation), "Connect your first machine");
       String dreamPid = shell(automation, "pidof com.t3tools.t3code.dream");
       if (previousPid.isEmpty() || dreamPid.isEmpty() || previousPid.equals(dreamPid)) {
         throw new AssertionError("Cold Dream did not start a new app process");
@@ -336,6 +400,83 @@ public final class StartupInstrumentation extends Instrumentation {
       awaitScreen(automation, () -> tapText(automation, "Customize"), "Dashboard style");
       capture(automation, "system-customize");
       result.putString("systemCustomize", "PASS");
+      if (fixture.length() > 0) {
+        result.putString("stage", "pair isolated showcase environments");
+        for (int index = 0; index < fixture.length(); index++) {
+          Intent pair = new Intent(Intent.ACTION_VIEW,
+              android.net.Uri.parse("t3code-dream://connections/new"))
+              .setPackage("com.t3tools.t3code.dream").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+          awaitScreen(automation, () -> getContext().startActivity(pair), "Address");
+          enterText(automation, "Address", fixture.getJSONObject(index).getString("address"));
+          enterText(automation, "Code", fixture.getJSONObject(index).getString("code"));
+          automation.executeAndWaitForEvent(() -> tapText(automation, "Add environment"), event -> {
+            String view = screenText(automation.getRootInActiveWindow());
+            if (dismissSystemDialog(automation, view)) return false;
+            return !has(view, "Address") && !has(view, "Connecting") && !has(view, "Starting T3 Code");
+          }, 30000);
+        }
+        awaitScreen(automation, () -> getContext().startActivity(settings), "Dashboard style");
+        result.putString("paired", "PASS");
+        String[][] sizes = {
+          { "phone", "1080x1920", "480", "0" },
+          { "phone-landscape", "1080x1920", "480", "1" },
+          { "tablet", "1920x1200", "240", "0" },
+          { "tablet-portrait", "1920x1200", "240", "1" }
+        };
+        for (String style : new String[] { "Dashboard", "Focus", "Clock" }) {
+          selectStyle(automation, style);
+          for (String[] viewport : sizes) {
+            result.putString("stage", style + " " + viewport[0]);
+            shell(automation, "wm size " + viewport[1]);
+            shell(automation, "wm density " + viewport[2]);
+            automation.setRotation("1".equals(viewport[3]) ? UiAutomation.ROTATION_FREEZE_90 : UiAutomation.ROTATION_FREEZE_0);
+            awaitScreen(automation, () -> startDream(automation), "Clock".equals(style) ? "working" : "Session status");
+            String display = screenText(automation.getRootInActiveWindow());
+            if (has(display, "Connect your first machine") || has(display, "Waiting for a connection")) {
+              throw new AssertionError("Paired screen saver lost live data");
+            }
+            capture(automation, "live-" + style.toLowerCase(java.util.Locale.ROOT) + "-" + viewport[0]);
+            Rect screen = new Rect();
+            AccessibilityNodeInfo root = automation.getRootInActiveWindow();
+            root.getBoundsInScreen(screen);
+            for (String label : "Dashboard".equals(style)
+                ? new String[] { "Session status", "Tokens · 24h", "Cost · 24h", "Quota remaining", "Working" }
+                : "Focus".equals(style) ? new String[] { "Session status", "Working", "Input", "Questions", "Finished" } : new String[0]) {
+              Rect item = textBounds(root, label);
+              if (item == null || item.isEmpty() || !screen.contains(item)) {
+                throw new AssertionError("Clipped " + label + " in " + style + " " + viewport[0]);
+              }
+            }
+            awaitScreen(automation, () -> exitDream(automation), style + " style");
+          }
+          shell(automation, "wm size reset");
+          shell(automation, "wm density reset");
+          automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
+        }
+        result.putString("responsiveStyles", "PASS");
+      }
+      result.putString("stage", "unsupported device capability");
+      ComponentName systemSettings = new Intent(android.provider.Settings.ACTION_DREAM_SETTINGS)
+          .resolveActivity(getContext().getPackageManager());
+      if (systemSettings == null) throw new AssertionError("Test system has no screen saver settings");
+      try {
+        shell(automation, "pm disable-user --user 0 " + systemSettings.flattenToString());
+        automation.injectInputEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_HOME), true);
+        automation.injectInputEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_HOME), true);
+        shell(automation, "am force-stop com.t3tools.t3code.dream");
+        awaitScreen(automation, () -> getContext().startActivity(settings), "Screen savers aren’t available");
+        capture(automation, "unsupported-direct-link");
+        Intent index = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("t3code-dream://settings"))
+            .setPackage("com.t3tools.t3code.dream").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        awaitScreen(automation, () -> getContext().startActivity(index), "Appearance");
+        if (has(screenText(automation.getRootInActiveWindow()), "Desk dashboard")) {
+          throw new AssertionError("Unsupported screen saver is still in Settings");
+        }
+        capture(automation, "unsupported-settings");
+        result.putString("capabilityGate", "PASS");
+      } finally {
+        shell(automation, "pm enable --user 0 " + systemSettings.flattenToString());
+      }
       passed = true;
     } catch (Throwable error) {
       result.putString("failure", error.toString());
@@ -347,6 +488,8 @@ public final class StartupInstrumentation extends Instrumentation {
       result.putString("startup", passed ? "PASS" : "FAIL");
       try {
         capture(automation, "screen");
+        shell(automation, "wm size reset");
+        shell(automation, "wm density reset");
         automation.setRotation(UiAutomation.ROTATION_UNFREEZE);
       } catch (Throwable error) {
         result.putString("captureFailure", error.toString());

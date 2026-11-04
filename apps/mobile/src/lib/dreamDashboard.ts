@@ -47,6 +47,19 @@ export interface DreamPreferences {
   readonly pixelShift: boolean;
 }
 const DEFAULT_DREAM_SLOTS: readonly DreamKpi[] = ["status", "tokens", "cost", "limits", "working"];
+export function resolveDreamConnection(source: {
+  readonly ready: boolean;
+  readonly configured: number;
+  readonly selected: number;
+  readonly live: number;
+}) {
+  if (!source.ready) return "loading";
+  if (source.configured === 0) return "unconfigured";
+  if (source.selected === 0) return "unselected";
+  if (source.live === 0) return "offline";
+  return source.live < source.selected ? "partial" : "live";
+}
+
 export function normalizeDreamPreferences(value: unknown): DreamPreferences {
   const saved =
     typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};

@@ -17,6 +17,11 @@ class T3NativeControlsModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("T3NativeControls")
 
+    Function("isDreamSupported") {
+      val context = appContext.reactContext ?: return@Function false
+      Intent(Settings.ACTION_DREAM_SETTINGS).resolveActivity(context.packageManager) != null
+    }
+
     Function("openDreamSettings") {
       val context = appContext.reactContext ?: error("The app is not active.")
       context.startActivity(

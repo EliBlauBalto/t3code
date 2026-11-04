@@ -12,7 +12,10 @@ build_tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d 
 cat > "$output/AndroidManifest.xml" <<'XML'
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.t3tools.startuptest">
   <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="35" />
-  <queries><package android:name="com.t3tools.t3code.dream" /></queries>
+  <queries>
+    <package android:name="com.t3tools.t3code.dream" />
+    <intent><action android:name="android.settings.DREAM_SETTINGS" /></intent>
+  </queries>
   <application android:label="Release startup test" />
   <instrumentation android:name="com.t3tools.startuptest.StartupInstrumentation" android:targetPackage="com.t3tools.startuptest" />
 </manifest>
@@ -65,7 +68,8 @@ fi
 adb shell settings put secure screensaver_enabled 1
 adb shell settings put secure screensaver_components com.t3tools.t3code.dream/expo.modules.t3nativecontrols.T3DreamService
 adb logcat -c
-adb shell am instrument -w com.t3tools.startuptest/.StartupInstrumentation | tee "$output/result.txt"
+fixture="$(printf '%s' "${T3_DREAM_FIXTURE:-[]}" | base64 -w0)"
+adb shell am instrument -w -e fixture "$fixture" com.t3tools.startuptest/.StartupInstrumentation | tee "$output/result.txt"
 adb logcat -d -v threadtime > "$output/logcat.txt"
 adb pull /sdcard/Android/data/com.t3tools.startuptest/files/ "$output/capture" || true
 grep -q 'startup=PASS' "$output/result.txt"

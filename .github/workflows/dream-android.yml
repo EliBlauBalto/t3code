@@ -75,9 +75,11 @@ jobs:
   startup:
     needs: build
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
+      - uses: voidzero-dev/setup-vp@250f29ce396baf5e8f24498e17c0dfdebabc26eb
+      - run: vp i --frozen-lockfile
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -101,7 +103,7 @@ jobs:
           cores: 4
           ram-size: 4096M
           disable-animations: true
-          script: bash apps/mobile/tests/startup/run.sh /tmp/dream-apk/app-release.apk /tmp/dream-startup-evidence
+          script: node scripts/dream-startup-fixture.ts /tmp/dream-apk/app-release.apk /tmp/dream-startup-evidence
       - name: Retain installed verification evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

@@ -21,7 +21,10 @@ metric, then pick colors, brightness, clock format, and which projects or sessio
 the status tiles. Empty tiles are allowed. Usage and quota totals retain T3's existing
 machine scope.
 
-Use **Open screen saver settings** to choose **T3 Code** and enable it while charging.
+The live preview updates as you change settings. **Full-screen preview** lets you check
+the current style before enabling it. Use **Set as screen saver** to choose **T3 Code**
+and enable it while charging. The feature appears only when the device exposes Android's
+screen saver settings, including supported non-Pixel phones.
 Android's **Preview** opens your current style; **Customize** returns to Desk dashboard
 settings. The picker thumbnail is a static illustration. Touching the screen exits normally.
 The display supports portrait and landscape.

@@ -1,6 +1,6 @@
-import { requireOptionalNativeModule } from "expo";
 import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
 
 import { AppText as Text } from "../../components/ui/AppText";
 import { ListActionRow } from "../../components/ui/ListActionRow";
@@ -24,11 +24,11 @@ import {
 } from "../../lib/dreamDashboard";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import { useDreamSources } from "../dream/useDreamDashboard";
+import { DreamPreview } from "../dream/DreamPreview";
+import { dreamControls, supportsDream } from "../../lib/dreamSupport";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { SettingsSection } from "./components/SettingsSection";
 import { SettingsSwitchRow } from "./components/SettingsSwitchRow";
-
-const native = requireOptionalNativeModule<{ openDreamSettings(): void }>("T3NativeControls");
 
 const KPI_ACTIONS = Object.entries(DREAM_KPIS).map(([id, title]) => ({
   id: id || "empty",
@@ -42,9 +42,9 @@ const options = <Value extends string>(labels: Record<Value, string>) =>
 
 const defaults = normalizeDreamPreferences(undefined);
 const layoutDescriptions: Record<DreamLayout, string> = {
-  dashboard: "One large tile and four small tiles. Everything at a glance.",
-  focus: "Your large tile fills the display. Other tile choices are kept for Dashboard.",
-  clock: "A quiet clock with a short session summary. Your tile choices are kept for Dashboard.",
+  dashboard: "Session activity and your key metrics, together.",
+  focus: "One metric, with room to breathe.",
+  clock: "Time first. A quiet session summary below.",
 };
 
 function LayoutChoice(props: {
@@ -53,7 +53,7 @@ function LayoutChoice(props: {
   readonly onSelect: (layout: DreamLayout) => void;
 }) {
   return (
-    <View className="flex-row gap-2 px-4 py-4">
+    <View className="flex-row gap-2 p-3">
       {options(DREAM_LAYOUTS).map(({ value, label }) => (
         <Pressable
           key={value}
@@ -63,36 +63,17 @@ function LayoutChoice(props: {
           disabled={props.disabled}
           onPress={() => props.onSelect(value)}
           className={cn(
-            "flex-1 gap-3 rounded-2xl border p-2 active:opacity-70",
+            "min-h-12 flex-1 items-center justify-center rounded-full border px-2 py-3 active:opacity-70",
             props.selected === value ? "border-primary bg-primary/10" : "border-border-subtle",
             props.disabled && "opacity-45",
           )}
         >
-          <View className="h-28 items-center justify-center gap-2 rounded-xl bg-subtle p-2">
-            <Text
-              textRole={value === "clock" ? "title" : "label"}
-              className="font-t3-medium"
-              numberOfLines={1}
-              adjustsFontSizeToFit
-            >
-              09:41
-            </Text>
-            {value !== "clock" ? (
-              <>
-                <View className="w-full flex-1 rounded-md bg-foreground/10" />
-                {value === "dashboard" ? (
-                  <View className="w-full flex-row gap-1">
-                    {[0, 1, 2, 3].map((index) => (
-                      <View key={index} className="h-3 flex-1 rounded-sm bg-foreground/10" />
-                    ))}
-                  </View>
-                ) : null}
-              </>
-            ) : (
-              <View className="h-1 w-10 rounded-full bg-foreground/20" />
-            )}
-          </View>
-          <Text textRole="footnote" className="text-center font-t3-medium">
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            textRole="footnote"
+            className="text-center font-t3-medium"
+          >
             {label}
           </Text>
         </Pressable>
@@ -128,7 +109,7 @@ function SlotTile(props: {
         onPress={() => {}}
         className={cn(
           "items-center justify-center rounded-2xl border px-3 active:opacity-70",
-          central ? "h-28 border-primary/40 bg-primary/10" : "h-20 border-border-subtle bg-subtle",
+          central ? "h-20 border-primary/40 bg-primary/10" : "h-16 border-border-subtle bg-subtle",
           props.disabled && "opacity-45",
         )}
       >
@@ -170,6 +151,7 @@ const count = (value: number, noun: string) =>
   value === 0 ? "None" : `${value} ${noun}${value === 1 ? "" : "s"}`;
 
 export function SettingsDeskDashboardRouteScreen() {
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const source = useDreamSources();
   const { preferences, ready, save } = source;
@@ -182,7 +164,7 @@ export function SettingsDeskDashboardRouteScreen() {
   const sessions = source.threads.filter(
     (thread) => thread.archivedAt === null && thread.deletedAt === null,
   );
-  const canOpenScreenSaver = typeof native?.openDreamSettings === "function";
+  const canOpenScreenSaver = supportsDream();
   const customized = (Object.keys(defaults) as (keyof DreamPreferences)[]).some(
     (key) =>
       !["all", "projects", "threads"].includes(key) &&
@@ -198,180 +180,210 @@ export function SettingsDeskDashboardRouteScreen() {
         contentContainerClassName="gap-6 px-5 pt-4"
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
       >
-        <SettingsSection title="Style" footer={layoutDescriptions[preferences.layout]}>
-          <LayoutChoice selected={preferences.layout} disabled={!ready} onSelect={set("layout")} />
-        </SettingsSection>
-        <SettingsSection
-          title="Tiles"
-          footer="Tap a tile to change what it shows. Picking a metric that is already on the dashboard swaps the two. Usage and quota cover the selected machines, not single sessions."
-        >
-          <View className="gap-3 px-4 py-4">
-            <SlotTile
-              kpi={preferences.slots[0]!}
-              index={0}
-              disabled={!ready}
-              onChange={(kpi) =>
-                save((current) => ({ slots: assignDreamSlot(current.slots, 0, kpi) }))
-              }
-            />
-            {[1, 3].map((start) => (
-              <View key={start} className="flex-row gap-3">
-                {[start, start + 1].map((index) => (
+        {!canOpenScreenSaver ? (
+          <Text textRole="body" className="px-4 text-foreground-muted">
+            Screen savers aren’t available on this device.
+          </Text>
+        ) : (
+          <>
+            <SettingsSection
+              title="Preview"
+              footer="Changes save automatically. In Android settings, choose T3 Code and enable it while charging. Touching the screen saver exits."
+            >
+              <DreamPreview source={source} />
+              <ListActionRow
+                label="Set as screen saver"
+                onPress={() => dreamControls?.openDreamSettings()}
+              />
+              {source.environmentIds.size === 0 && preferences.all ? (
+                <ListActionRow
+                  label="Connect a machine"
+                  onPress={() => navigation.navigate("SettingsEnvironments")}
+                />
+              ) : null}
+            </SettingsSection>
+            <SettingsSection title="Style" footer={layoutDescriptions[preferences.layout]}>
+              <LayoutChoice
+                selected={preferences.layout}
+                disabled={!ready}
+                onSelect={set("layout")}
+              />
+            </SettingsSection>
+            {preferences.layout !== "clock" ? (
+              <SettingsSection
+                title={preferences.layout === "focus" ? "Focus tile" : "Tiles"}
+                footer="Tap a tile to change it. Metrics already in use swap places. Usage and quota cover selected machines."
+              >
+                <View className="gap-3 px-4 py-4">
                   <SlotTile
-                    key={index}
-                    kpi={preferences.slots[index]!}
-                    index={index}
+                    kpi={preferences.slots[0]!}
+                    index={0}
                     disabled={!ready}
                     onChange={(kpi) =>
-                      save((current) => ({ slots: assignDreamSlot(current.slots, index, kpi) }))
+                      save((current) => ({ slots: assignDreamSlot(current.slots, 0, kpi) }))
                     }
                   />
-                ))}
-              </View>
-            ))}
-          </View>
-        </SettingsSection>
+                  {preferences.layout === "dashboard"
+                    ? [1, 3].map((start) => (
+                        <View key={start} className="flex-row gap-3">
+                          {[start, start + 1].map((index) => (
+                            <SlotTile
+                              key={index}
+                              kpi={preferences.slots[index]!}
+                              index={index}
+                              disabled={!ready}
+                              onChange={(kpi) =>
+                                save((current) => ({
+                                  slots: assignDreamSlot(current.slots, index, kpi),
+                                }))
+                              }
+                            />
+                          ))}
+                        </View>
+                      ))
+                    : null}
+                </View>
+              </SettingsSection>
+            ) : null}
 
-        <SettingsSection title="Look">
-          <Choice
-            label="Colors"
-            values={DREAM_PALETTES}
-            selected={preferences.palette}
-            disabled={!ready}
-            onSelect={set("palette")}
-          />
-          <Choice
-            label="Brightness"
-            values={DREAM_BRIGHTNESS}
-            selected={preferences.brightness}
-            disabled={!ready}
-            onSelect={set("brightness")}
-          />
-          <Choice
-            label="Clock"
-            values={DREAM_CLOCKS}
-            selected={preferences.clock}
-            disabled={!ready}
-            onSelect={set("clock")}
-          />
-          <SettingsSwitchRow
-            label="Show date"
-            value={preferences.showDate}
-            disabled={!ready}
-            onValueChange={set("showDate")}
-          />
-          <SettingsSwitchRow
-            label="Show connection status"
-            value={preferences.showStatus}
-            disabled={!ready}
-            onValueChange={set("showStatus")}
-          />
-          <SettingsSwitchRow
-            label="Protect screen from burn-in"
-            subtitle="Nudges the layout a few pixels every minute."
-            value={preferences.pixelShift}
-            disabled={!ready}
-            onValueChange={set("pixelShift")}
-          />
-        </SettingsSection>
+            <SettingsSection title="Look">
+              <Choice
+                label="Colors"
+                values={DREAM_PALETTES}
+                selected={preferences.palette}
+                disabled={!ready}
+                onSelect={set("palette")}
+              />
+              <Choice
+                label="Brightness"
+                values={DREAM_BRIGHTNESS}
+                selected={preferences.brightness}
+                disabled={!ready}
+                onSelect={set("brightness")}
+              />
+              <Choice
+                label="Clock"
+                values={DREAM_CLOCKS}
+                selected={preferences.clock}
+                disabled={!ready}
+                onSelect={set("clock")}
+              />
+              <SettingsSwitchRow
+                label="Show date"
+                value={preferences.showDate}
+                disabled={!ready}
+                onValueChange={set("showDate")}
+              />
+              <SettingsSwitchRow
+                label="Show connection status"
+                value={preferences.showStatus}
+                disabled={!ready}
+                onValueChange={set("showStatus")}
+              />
+              <SettingsSwitchRow
+                label="Shift display gently"
+                subtitle="Moves the layout slightly each minute."
+                value={preferences.pixelShift}
+                disabled={!ready}
+                onValueChange={set("pixelShift")}
+              />
+            </SettingsSection>
 
-        <SettingsSection
-          title="Sessions"
-          footer="Choose which projects and sessions feed the status tiles."
-        >
-          <SettingsSwitchRow
-            label="All projects and sessions"
-            value={preferences.all}
-            disabled={!ready}
-            onValueChange={set("all")}
-          />
-          {!preferences.all ? (
-            <>
-              <Menu
-                actions={source.projects.map((project) => ({
-                  id: project.key,
-                  title: project.title,
-                  state: preferences.projects.includes(project.key)
-                    ? ("on" as const)
-                    : ("off" as const),
-                }))}
-                onPressAction={({ nativeEvent }) =>
-                  save((current) => ({ projects: toggle(current.projects, nativeEvent.event) }))
+            <SettingsSection
+              title="Sessions"
+              footer={
+                !preferences.all && source.environmentIds.size === 0
+                  ? "Nothing selected. Choose a project or session to see live status."
+                  : "Choose what feeds your session counts. Your selection applies to every style."
+              }
+            >
+              <SettingsSwitchRow
+                label="All projects and sessions"
+                value={preferences.all}
+                disabled={!ready}
+                onValueChange={set("all")}
+              />
+              {!preferences.all ? (
+                <>
+                  <Menu
+                    actions={source.projects.map((project) => ({
+                      id: project.key,
+                      title: project.title,
+                      state: preferences.projects.includes(project.key)
+                        ? ("on" as const)
+                        : ("off" as const),
+                    }))}
+                    onPressAction={({ nativeEvent }) =>
+                      save((current) => ({ projects: toggle(current.projects, nativeEvent.event) }))
+                    }
+                  >
+                    <RowPressable
+                      accessibilityRole="button"
+                      disabled={!ready || source.projects.length === 0}
+                      onPress={() => {}}
+                      className="border-t border-border-subtle bg-grouped-card"
+                    >
+                      <ListRowLayout
+                        label="Projects"
+                        detail={count(preferences.projects.length, "project")}
+                        disabled={!ready || source.projects.length === 0}
+                      />
+                    </RowPressable>
+                  </Menu>
+                  <Menu
+                    actions={sessions.map((thread) => ({
+                      id: scopedThreadKey(thread.environmentId, thread.id),
+                      title: thread.title,
+                      subtitle: source.presentations.get(thread.environmentId)?.entry.target.label,
+                      state: preferences.threads.includes(
+                        scopedThreadKey(thread.environmentId, thread.id),
+                      )
+                        ? ("on" as const)
+                        : ("off" as const),
+                    }))}
+                    onPressAction={({ nativeEvent }) =>
+                      save((current) => ({ threads: toggle(current.threads, nativeEvent.event) }))
+                    }
+                  >
+                    <RowPressable
+                      accessibilityRole="button"
+                      disabled={!ready || sessions.length === 0}
+                      onPress={() => {}}
+                      className="border-t border-border-subtle bg-grouped-card"
+                    >
+                      <ListRowLayout
+                        label="Sessions"
+                        detail={count(preferences.threads.length, "session")}
+                        disabled={!ready || sessions.length === 0}
+                      />
+                    </RowPressable>
+                  </Menu>
+                </>
+              ) : null}
+            </SettingsSection>
+
+            <SettingsSection title="Reset">
+              <ListActionRow
+                label="Reset tiles and look"
+                description="Keeps your project and session choices."
+                tone="danger"
+                disabled={!ready || !customized}
+                onPress={() =>
+                  save({
+                    layout: defaults.layout,
+                    slots: defaults.slots,
+                    palette: defaults.palette,
+                    clock: defaults.clock,
+                    showDate: defaults.showDate,
+                    showStatus: defaults.showStatus,
+                    brightness: defaults.brightness,
+                    pixelShift: defaults.pixelShift,
+                  })
                 }
-              >
-                <RowPressable
-                  accessibilityRole="button"
-                  disabled={!ready || source.projects.length === 0}
-                  onPress={() => {}}
-                  className="border-t border-border-subtle bg-grouped-card"
-                >
-                  <ListRowLayout
-                    label="Projects"
-                    detail={count(preferences.projects.length, "project")}
-                    disabled={!ready || source.projects.length === 0}
-                  />
-                </RowPressable>
-              </Menu>
-              <Menu
-                actions={sessions.map((thread) => ({
-                  id: scopedThreadKey(thread.environmentId, thread.id),
-                  title: thread.title,
-                  subtitle: source.presentations.get(thread.environmentId)?.entry.target.label,
-                  state: preferences.threads.includes(
-                    scopedThreadKey(thread.environmentId, thread.id),
-                  )
-                    ? ("on" as const)
-                    : ("off" as const),
-                }))}
-                onPressAction={({ nativeEvent }) =>
-                  save((current) => ({ threads: toggle(current.threads, nativeEvent.event) }))
-                }
-              >
-                <RowPressable
-                  accessibilityRole="button"
-                  disabled={!ready || sessions.length === 0}
-                  onPress={() => {}}
-                  className="border-t border-border-subtle bg-grouped-card"
-                >
-                  <ListRowLayout
-                    label="Sessions"
-                    detail={count(preferences.threads.length, "session")}
-                    disabled={!ready || sessions.length === 0}
-                  />
-                </RowPressable>
-              </Menu>
-            </>
-          ) : null}
-        </SettingsSection>
-
-        <SettingsSection
-          title="Android screen saver"
-          footer="In Android’s screen saver settings, choose T3 Code. Preview starts the screen saver; Customize returns here. It shows while charging or docked, and a touch exits."
-        >
-          <ListActionRow
-            label="Open screen saver settings"
-            disabled={!canOpenScreenSaver}
-            onPress={() => native?.openDreamSettings?.()}
-          />
-          <ListActionRow
-            label="Reset tiles and look"
-            description="Keeps your project and session choices."
-            tone="danger"
-            disabled={!ready || !customized}
-            onPress={() =>
-              save({
-                layout: defaults.layout,
-                slots: defaults.slots,
-                palette: defaults.palette,
-                clock: defaults.clock,
-                showDate: defaults.showDate,
-                showStatus: defaults.showStatus,
-                brightness: defaults.brightness,
-                pixelShift: defaults.pixelShift,
-              })
-            }
-          />
-        </SettingsSection>
+              />
+            </SettingsSection>
+          </>
+        )}
       </ScrollView>
     </SettingsScreen>
   );
