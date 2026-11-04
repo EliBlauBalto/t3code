@@ -10,7 +10,7 @@ import {
 } from "./appLinking";
 
 describe("shouldHandleAppLink", () => {
-  it.each(["t3code://", "t3code:///", "t3code-dev://", "t3code-preview://"])(
+  it.each(["t3code://", "t3code:///", "t3code-dev://", "t3code-preview://", "t3code-dream://"])(
     "ignores scheme-only URL %s",
     (url) => {
       expect(shouldHandleAppLink(url, true)).toBe(false);
@@ -21,6 +21,7 @@ describe("shouldHandleAppLink", () => {
     "t3code://threads/env-1/thread-1",
     "t3code://pair?pairingUrl=x",
     "t3code-dev://settings/usage?tab=limits",
+    "t3code-dream://threads/env-1/thread-1",
     "https://app.t3.codes/threads/env/thread?prompt=Fix%20expo-development-client%20and%20t3code://expo-sharing",
   ])("handles path-bearing URL %s", (url) => {
     expect(shouldHandleAppLink(url, true)).toBe(true);

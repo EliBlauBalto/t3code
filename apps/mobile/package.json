@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "expo start",
     "dev:client": "APP_VARIANT=development expo start --dev-client --scheme t3code-dev --lan",
+    "dev:client:dream": "APP_VARIANT=dream expo start --dev-client --scheme t3code-dream --lan",
     "dev:client:reset": "APP_VARIANT=development expo start --dev-client --scheme t3code-dev --clear --lan",
     "dev:client:preview-env": "eas env:exec preview 'EXPO_NO_DOTENV=1 APP_VARIANT=development expo start --dev-client --scheme t3code-dev --lan --port 0'",
     "dev:client:preview": "eas env:exec preview 'EXPO_NO_DOTENV=1 APP_VARIANT=preview expo start --dev-client --scheme t3code-preview --lan'",
@@ -16,6 +17,7 @@
     "showcase": "APP_VARIANT=production EXPO_PUBLIC_SHOWCASE=1 expo start --dev-client --scheme t3code",
     "screenshots": "node ../../scripts/mobile-showcase.ts",
     "android": "EXPO_NO_GIT_STATUS=1 expo prebuild --clean --platform android && expo run:android",
+    "android:dream": "APP_VARIANT=dream expo prebuild --platform android && APP_VARIANT=dream expo run:android --variant release --no-bundler",
     "android:dev": "APP_VARIANT=development EXPO_NO_GIT_STATUS=1 expo prebuild --clean --platform android && REACT_NATIVE_PACKAGER_HOSTNAME=localhost expo run:android",
     "android:preview": "APP_VARIANT=preview EXPO_NO_GIT_STATUS=1 expo prebuild --clean --platform android && expo run:android",
     "android:prod": "APP_VARIANT=production EXPO_NO_GIT_STATUS=1 expo prebuild --clean --platform android && expo run:android",
@@ -37,6 +39,7 @@
     "eas:preview:dev": "eas build --profile preview:dev",
     "eas:prod": "eas build --profile production",
     "config:dev": "APP_VARIANT=development expo config",
+    "config:dream": "APP_VARIANT=dream expo config",
     "config:preview": "APP_VARIANT=preview expo config",
     "config:prod": "APP_VARIANT=production expo config",
     "profile:android:hermes": "mkdir -p profiles/review && react-native profile-hermes profiles/review",

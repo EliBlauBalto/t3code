@@ -1,5 +1,22 @@
 # T3 Code Mobile
 
+## Personal Android fork
+
+This fork defaults to the Android-only `dream` variant: **T3 Code Dream**, package
+`com.t3tools.t3code.dream`, with the `t3code-dream://` link scheme. It installs beside the
+official app and uses separate app storage. Pair your servers again in Dream; the official
+app's connections are not copied. Official over-the-air updates and verified website links
+are disabled for this variant.
+
+From `apps/mobile`, run `vp run android:dream` to build and install a standalone release APK
+using your local Android SDK and a connected device. This uses the local Android release
+configuration; configure your own signing key before distributing builds. It does not use
+the upstream Expo project. `vp run config:dream` inspects its configuration. The existing
+development, preview, and production variants remain available explicitly.
+
+The separate install identity is preparation for the desk dashboard; it does not itself add
+the screen saver.
+
 > [!NOTE]
 > To install the released app from the App Store or Google Play, see [Mobile app](../../docs/user/install.md#mobile-app). This guide covers building it from source.
 

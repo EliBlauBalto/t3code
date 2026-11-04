@@ -21,12 +21,11 @@ async function loadConfig(variant: string | undefined) {
 
 it.each(["prod", ""])("rejects APP_VARIANT=%j before selecting production IDs", async (value) => {
   await expect(loadConfig(value)).rejects.toThrow(
-    "APP_VARIANT must be development, preview, or production.",
+    "APP_VARIANT must be development, preview, production, or dream.",
   );
 });
 
 it.each([
-  [undefined, "com.t3tools.t3code"],
   ["development", "com.t3tools.t3code.dev"],
   ["preview", "com.t3tools.t3code.preview"],
   ["production", "com.t3tools.t3code"],
@@ -45,3 +44,18 @@ it.each([
   ]);
   expect(assetLinks.map((link) => link.target.package_name)).toContain(identifier);
 });
+
+it.each([undefined, "dream"])(
+  "isolates the personal Dream install for APP_VARIANT=%j",
+  async (value) => {
+    const config = await loadConfig(value);
+    expect(config.android?.package).toBe("com.t3tools.t3code.dream");
+    expect(config.name).toBe("T3 Code Dream");
+    expect(config.scheme).toBe("t3code-dream");
+    expect(config.android?.intentFilters ?? []).toEqual([]);
+    expect(config.updates?.enabled).toBe(false);
+    expect(config.updates?.url).toBeUndefined();
+    expect(config.extra?.eas?.projectId).toBeUndefined();
+    expect(config.owner).toBeUndefined();
+  },
+);
