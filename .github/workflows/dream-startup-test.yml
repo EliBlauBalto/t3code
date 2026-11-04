@@ -11,9 +11,13 @@ on:
         description: Test-only synthetic observability metadata; never a deliverable APK
         type: boolean
         default: false
+      build_run:
+        description: Optional build run containing dream-candidate-apk; overrides release
+        default: ""
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   startup:
@@ -27,10 +31,19 @@ jobs:
           distribution: temurin
           java-version: "17"
       - name: Download the existing release without rebuilding
+        if: inputs.build_run == ''
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE: ${{ inputs.release }}
         run: gh release download "$RELEASE" --pattern T3-Code-Dream.apk --dir /tmp/dream-apk
+      - name: Download an existing candidate without rebuilding
+        if: inputs.build_run != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN: ${{ inputs.build_run }}
+        run: |
+          gh run download "$BUILD_RUN" --name dream-candidate-apk --dir /tmp/dream-apk
+          mv /tmp/dream-apk/app-release.apk /tmp/dream-apk/T3-Code-Dream.apk
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
