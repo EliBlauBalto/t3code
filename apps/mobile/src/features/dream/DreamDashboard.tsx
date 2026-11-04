@@ -8,6 +8,8 @@ import { useUsage } from "../../state/usage";
 import {
   DREAM_DIM_OPACITY,
   DREAM_KPIS,
+  dreamClockFontSize,
+  dreamTileScale,
   resolveDreamConnection,
   summarizeDreamThreads,
   type DreamKpi,
@@ -203,14 +205,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
   const needsYou = (kpi: "input" | "questions") => !unavailable && counts[kpi] > 0;
   const card = (kpi: DreamKpi, index: number, large: boolean) => {
     if (kpi === "") return <View key={index} style={styles.card} />;
-    const measured = tileSizes[index];
-    const tileScale = measured
-      ? Math.min(
-          scale,
-          measured.height / ((large ? 310 : 150) * Math.max(1, fontScale)),
-          measured.width / (large ? 260 : 155),
-        )
-      : scale;
+    const tileScale = dreamTileScale(scale, tileSizes[index], large, fontScale);
     const value = metric(kpi);
     const attention =
       kpi === "status"
@@ -440,9 +435,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
                 numberOfLines={1}
                 style={{
                   color: colors.foreground,
-                  fontSize: clockOnly
-                    ? Math.min(size.width * 0.31, size.height * 0.32, 240)
-                    : 46 * scale,
+                  fontSize: clockOnly ? dreamClockFontSize(size.width, size.height) : 46 * scale,
                   fontWeight: "200",
                   fontVariant: ["tabular-nums"],
                   includeFontPadding: false,
