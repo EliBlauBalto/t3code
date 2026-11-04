@@ -186,13 +186,16 @@ export function SettingsDeskDashboardRouteScreen() {
           </Text>
         ) : (
           <>
-            <SettingsSection
-              title="Preview"
-              footer="Changes save automatically. In Android settings, choose T3 Code and enable it while charging. Touching the screen saver exits."
-            >
+            <SettingsSection title="Style" footer={layoutDescriptions[preferences.layout]}>
+              <LayoutChoice
+                selected={preferences.layout}
+                disabled={!ready}
+                onSelect={set("layout")}
+              />
               <DreamPreview source={source} />
               <ListActionRow
                 label="Set as screen saver"
+                description="Choose T3 Code in Android settings and enable it while charging."
                 onPress={() => dreamControls?.openDreamSettings()}
               />
               {source.environmentIds.size === 0 && preferences.all ? (
@@ -201,13 +204,6 @@ export function SettingsDeskDashboardRouteScreen() {
                   onPress={() => navigation.navigate("SettingsEnvironments")}
                 />
               ) : null}
-            </SettingsSection>
-            <SettingsSection title="Style" footer={layoutDescriptions[preferences.layout]}>
-              <LayoutChoice
-                selected={preferences.layout}
-                disabled={!ready}
-                onSelect={set("layout")}
-              />
             </SettingsSection>
             {preferences.layout !== "clock" ? (
               <SettingsSection

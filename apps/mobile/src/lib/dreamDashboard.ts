@@ -47,6 +47,25 @@ export interface DreamPreferences {
   readonly pixelShift: boolean;
 }
 const DEFAULT_DREAM_SLOTS: readonly DreamKpi[] = ["status", "tokens", "cost", "limits", "working"];
+export function dreamClockFontSize(width: number, height: number) {
+  return Math.max(48, Math.min(width * 0.31, height * 0.32, 240));
+}
+
+export function dreamTileScale(
+  scale: number,
+  size: { readonly width: number; readonly height: number } | undefined,
+  large: boolean,
+  fontScale: number,
+) {
+  return size && size.width > 0 && size.height > 0
+    ? Math.min(
+        scale,
+        size.height / ((large ? 310 : 150) * Math.max(1, fontScale)),
+        size.width / (large ? 260 : 155),
+      )
+    : scale;
+}
+
 export function resolveDreamConnection(source: {
   readonly ready: boolean;
   readonly configured: number;

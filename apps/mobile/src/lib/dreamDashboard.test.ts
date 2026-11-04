@@ -8,7 +8,21 @@ import {
   selectDreamThreads,
   summarizeDreamThreads,
   resolveDreamConnection,
+  dreamClockFontSize,
+  dreamTileScale,
 } from "./dreamDashboard";
+
+it("keeps native text sizes positive before layout and during zero-size surface transitions", () => {
+  for (const [width, height] of [
+    [0, 0],
+    [0, 640],
+    [360, 0],
+  ] as const) {
+    expect(dreamClockFontSize(width, height)).toBeGreaterThan(0);
+    expect(dreamTileScale(0.8, { width, height }, true, 1)).toBe(0.8);
+  }
+  expect(dreamTileScale(0.8, undefined, false, 1)).toBe(0.8);
+});
 
 it("distinguishes missing setup, an empty selection, and disconnected selected machines", () => {
   const connected = { ready: true, configured: 2, selected: 2, live: 2 };
