@@ -25,6 +25,27 @@ javac --release 8 -cp "$android_jar" -d "$output/classes" "$directory/StartupIns
 keytool -genkeypair -keystore "$output/test.keystore" -storepass android -keypass android -alias test -keyalg RSA -dname CN=StartupTest -validity 1
 "$build_tools/apksigner" sign --ks "$output/test.keystore" --ks-pass pass:android "$output/test.apk"
 
+if [[ "${T3_STARTUP_OBSERVE_FIXTURE:-0}" == 1 ]]; then
+  python3 - "$apk" "$output/fixture-unaligned.apk" <<'PY'
+import json, sys, zipfile
+with zipfile.ZipFile(sys.argv[1]) as original, zipfile.ZipFile(sys.argv[2], "w") as fixture:
+    for entry in original.infolist():
+        if entry.filename.startswith("META-INF/"):
+            continue
+        content = original.read(entry)
+        if entry.filename == "assets/app.config":
+            config = json.loads(content)
+            config["extra"]["eas"]["projectId"] = "11111111-1111-4111-8111-111111111111"
+            config["extra"]["eas"]["observe"]["endpointUrl"] = "https://observe.invalid"
+            content = json.dumps(config).encode()
+        fixture.writestr(entry, content)
+PY
+  "$build_tools/zipalign" -P 16 -f 4 "$output/fixture-unaligned.apk" "$output/fixture.apk"
+  "$build_tools/apksigner" sign --ks "$output/test.keystore" --ks-pass pass:android "$output/fixture.apk"
+  apk="$output/fixture.apk"
+  echo 'TEST FIXTURE ONLY: synthetic EAS metadata, unreachable Observe endpoint, disposable signing key' | tee "$output/fixture.txt"
+fi
+
 adb shell getprop ro.product.cpu.abilist | tee "$output/abis.txt"
 adb shell getprop ro.dalvik.vm.native.bridge | tee "$output/native-bridge.txt"
 adb install "$apk"

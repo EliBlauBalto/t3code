@@ -7,6 +7,10 @@ on:
         description: Existing diagnostic release tag
         required: true
         default: dream-41766425794-1
+      observe_fixture:
+        description: Test-only synthetic observability metadata; never a deliverable APK
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -34,6 +38,8 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - name: Run native release startup test
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          T3_STARTUP_OBSERVE_FIXTURE: ${{ inputs.observe_fixture && '1' || '0' }}
         with:
           api-level: 35
           target: google_apis
