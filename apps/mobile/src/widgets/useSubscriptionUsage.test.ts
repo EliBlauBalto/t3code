@@ -70,6 +70,26 @@ const connected = EnvironmentId.make("env-connected");
 const connecting = EnvironmentId.make("env-connecting");
 
 describe("installSubscriptionUsageRefresh", () => {
+  it("refreshes for a visible dream without treating the normal app as foreground, and stops on disposal", () => {
+    fixture.appState = "background";
+    fixture.refreshed = [];
+    registry.set(catalogAtom, { isReady: true });
+    registry.set(presentationsAtom, new Map([[connected, { connection: { phase: "connected" } }]]));
+    const dispose = installSubscriptionUsageRefresh(() => true);
+    try {
+      expect(fixture.refreshed).toEqual([connected]);
+    } finally {
+      dispose();
+    }
+    fixture.refreshed = [];
+    registry.set(
+      presentationsAtom,
+      new Map([[connecting, { connection: { phase: "connected" } }]]),
+    );
+    expect(fixture.refreshed).toEqual([]);
+    expect(fixture.appState).toBe("background");
+    expect(fixture.appStateListeners.size).toBe(0);
+  });
   it("refreshes connected environments once the catalog is ready and the app is active", () => {
     fixture.appState = "background";
     fixture.refreshed = [];

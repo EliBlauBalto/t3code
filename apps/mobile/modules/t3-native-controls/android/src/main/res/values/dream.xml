@@ -1,0 +1,5 @@
+<resources>
+  <string name="t3_dream_name">T3 Code</string>
+  <string name="t3_dream_description">Agent status and usage at a glance</string>
+  <string name="t3_dream_settings_url" translatable="false">t3code://settings/desk-dashboard</string>
+</resources>

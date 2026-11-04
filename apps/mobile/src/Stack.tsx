@@ -114,6 +114,7 @@ import {
 import { SettingsKeyboardRouteScreen } from "./features/settings/SettingsKeyboardRouteScreen";
 import { SettingsLegalRouteScreen } from "./features/settings/SettingsLegalRouteScreen";
 import { SettingsMicrophoneRouteScreen } from "./features/settings/SettingsMicrophoneRouteScreen";
+import { SettingsDeskDashboardRouteScreen } from "./features/settings/SettingsDeskDashboardRouteScreen";
 import {
   SettingsOpenSourceLicenseRouteScreen,
   SettingsOpenSourceLicensesRouteScreen,
@@ -339,6 +340,11 @@ const SETTINGS_SCREENS = {
       ...SETTINGS_PAGE_OPTIONS,
       title: "Keyboard",
     },
+  }),
+  SettingsDeskDashboard: createNativeStackScreen({
+    screen: SettingsDeskDashboardRouteScreen,
+    linking: "settings/desk-dashboard",
+    options: { ...SETTINGS_PAGE_OPTIONS, title: "Desk dashboard" },
   }),
   SettingsMicrophone: createNativeStackScreen({
     screen: SettingsMicrophoneRouteScreen,

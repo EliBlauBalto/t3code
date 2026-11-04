@@ -1,6 +1,7 @@
 package expo.modules.t3nativecontrols
 
 import android.content.Intent
+import android.provider.Settings
 import android.text.format.DateFormat
 import androidx.core.content.FileProvider
 import expo.modules.kotlin.Promise
@@ -15,6 +16,18 @@ class T3NativeControlsModule : Module() {
   @Suppress("TooGenericExceptionCaught") // Clear the pending promise before rethrowing.
   override fun definition() = ModuleDefinition {
     Name("T3NativeControls")
+
+    Function("isDreamSupported") {
+      val context = appContext.reactContext ?: return@Function false
+      Intent(Settings.ACTION_DREAM_SETTINGS).resolveActivity(context.packageManager) != null
+    }
+
+    Function("openDreamSettings") {
+      val context = appContext.reactContext ?: error("The app is not active.")
+      context.startActivity(
+        Intent(Settings.ACTION_DREAM_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      )
+    }
 
     Function("is24HourFormat") {
       val context = appContext.reactContext ?: error("The app is not active.")

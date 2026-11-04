@@ -1,1 +1,26 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <queries>
+    <intent>
+      <action android:name="android.settings.DREAM_SETTINGS" />
+    </intent>
+  </queries>
+  <application>
+    <activity
+      android:name="expo.modules.t3nativecontrols.T3DreamSettingsActivity"
+      android:exported="true"
+      android:excludeFromRecents="true"
+      android:theme="@android:style/Theme.NoDisplay" />
+    <service
+      android:name="expo.modules.t3nativecontrols.T3DreamService"
+      android:exported="true"
+      android:label="@string/t3_dream_name"
+      android:description="@string/t3_dream_description"
+      android:permission="android.permission.BIND_DREAM_SERVICE">
+      <intent-filter>
+        <action android:name="android.service.dreams.DreamService" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+      <meta-data android:name="android.service.dream" android:resource="@xml/t3_dream" />
+    </service>
+  </application>
+</manifest>

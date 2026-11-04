@@ -1,0 +1,4 @@
+<dream xmlns:android="http://schemas.android.com/apk/res/android"
+  android:previewImage="@drawable/t3_dream_preview"
+  android:settingsActivity="expo.modules.t3nativecontrols.T3DreamSettingsActivity"
+  android:showClockAndComplications="false" />
