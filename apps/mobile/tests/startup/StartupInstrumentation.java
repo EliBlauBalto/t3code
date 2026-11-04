@@ -33,10 +33,28 @@ public final class StartupInstrumentation extends Instrumentation {
     return text.toString();
   }
 
+  private int systemDialogs = 0;
+
+  private static boolean has(String text, String expected) {
+    return text.toLowerCase(java.util.Locale.ROOT).contains(expected.toLowerCase(java.util.Locale.ROOT));
+  }
+
+  // The emulator's own launcher can stall on a slow runner and cover the app with a system dialog.
+  // Tap Wait so the app under test stays measurable; the count is reported, not hidden.
+  private boolean dismissSystemDialog(UiAutomation automation, String text) {
+    if (!has(text, "isn't responding") && !has(text, "isn’t responding")) return false;
+    Rect wait = textBounds(automation.getRootInActiveWindow(), "Wait");
+    if (wait == null) return false;
+    systemDialogs++;
+    tap(automation, wait.centerX(), wait.centerY());
+    return true;
+  }
+
   private void awaitScreen(UiAutomation automation, Runnable action, String expected) throws Exception {
     automation.executeAndWaitForEvent(action, event -> {
       String text = screenText(automation.getRootInActiveWindow());
-      return text.contains(expected) && !text.contains("Starting T3 Code")
+      if (dismissSystemDialog(automation, text)) return false;
+      return has(text, expected) && !text.contains("Starting T3 Code")
           && !text.contains("taking longer to start");
     }, 30000);
   }
@@ -84,7 +102,7 @@ public final class StartupInstrumentation extends Instrumentation {
 
   private Rect textBounds(AccessibilityNodeInfo node, String text) {
     if (node == null) return null;
-    if (text.contentEquals(node.getText() == null ? "" : node.getText())) {
+    if (text.equalsIgnoreCase(node.getText() == null ? "" : node.getText().toString())) {
       Rect bounds = new Rect();
       node.getBoundsInScreen(bounds);
       return bounds;
@@ -96,14 +114,10 @@ public final class StartupInstrumentation extends Instrumentation {
     return null;
   }
 
-  private void exitDream(UiAutomation automation) {
-    Rect bounds = new Rect();
-    automation.getRootInActiveWindow().getBoundsInScreen(bounds);
+  private void tap(UiAutomation automation, int x, int y) {
     long time = SystemClock.uptimeMillis();
-    MotionEvent down = MotionEvent.obtain(time, time, MotionEvent.ACTION_DOWN,
-        bounds.centerX(), bounds.centerY(), 0);
-    MotionEvent up = MotionEvent.obtain(time, time, MotionEvent.ACTION_UP,
-        bounds.centerX(), bounds.centerY(), 0);
+    MotionEvent down = MotionEvent.obtain(time, time, MotionEvent.ACTION_DOWN, x, y, 0);
+    MotionEvent up = MotionEvent.obtain(time, time, MotionEvent.ACTION_UP, x, y, 0);
     try {
       automation.injectInputEvent(down, true);
       automation.injectInputEvent(up, true);
@@ -111,6 +125,12 @@ public final class StartupInstrumentation extends Instrumentation {
       down.recycle();
       up.recycle();
     }
+  }
+
+  private void exitDream(UiAutomation automation) {
+    Rect bounds = new Rect();
+    automation.getRootInActiveWindow().getBoundsInScreen(bounds);
+    tap(automation, bounds.centerX(), bounds.centerY());
   }
 
   @Override
@@ -127,6 +147,7 @@ public final class StartupInstrumentation extends Instrumentation {
           () -> getContext().startActivity(launch),
           event -> {
             String text = screenText(automation.getRootInActiveWindow());
+            if (dismissSystemDialog(automation, text)) return false;
             return (text.contains("Add environment") && !text.contains("Starting T3 Code")
                 && !text.contains("taking longer to start")) || text.contains("couldn’t start")
                 || text.contains("couldn't start") || text.contains("keeps stopping");
@@ -191,6 +212,7 @@ public final class StartupInstrumentation extends Instrumentation {
     } finally {
       String text = screenText(automation.getRootInActiveWindow());
       result.putString("screen", text);
+      result.putString("systemDialogsDismissed", String.valueOf(systemDialogs));
       result.putString("startup", passed ? "PASS" : "FAIL");
       try {
         capture(automation, "screen");
