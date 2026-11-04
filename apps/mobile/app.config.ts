@@ -461,6 +461,7 @@ const config: ExpoConfig = {
     ...(!isIosPersonalTeamBuild ? ["./plugins/withWidgetLogoAsset.cjs", widgetsPlugin] : []),
     "./plugins/withAndroidNetworkSecurityConfig.cjs",
     "./plugins/withAndroidGradleHeap.cjs",
+    "./plugins/withAndroidDreamSettings.cjs",
     ...(isDreamBuild ? ["./plugins/withAndroidStandaloneObserve.cjs"] : []),
     "./plugins/withAndroidInputBackground.cjs",
     "./plugins/withAndroidModernPopupMenu.cjs",

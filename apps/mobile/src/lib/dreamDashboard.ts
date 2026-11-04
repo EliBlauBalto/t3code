@@ -19,6 +19,8 @@ export const DREAM_KPIS = {
   "": "Empty",
 } as const;
 export type DreamKpi = keyof typeof DREAM_KPIS;
+export const DREAM_LAYOUTS = { dashboard: "Dashboard", focus: "Focus", clock: "Clock" } as const;
+export type DreamLayout = keyof typeof DREAM_LAYOUTS;
 export const DREAM_PALETTES = { theme: "Theme", mono: "Monochrome", amber: "Amber night" } as const;
 export type DreamPalette = keyof typeof DREAM_PALETTES;
 export const DREAM_CLOCKS = { system: "System", "12": "12-hour", "24": "24-hour" } as const;
@@ -32,6 +34,7 @@ export const DREAM_DIM_OPACITY: Record<DreamBrightness, number> = {
 };
 
 export interface DreamPreferences {
+  readonly layout: DreamLayout;
   readonly slots: readonly DreamKpi[];
   readonly all: boolean;
   readonly projects: readonly string[];
@@ -52,6 +55,7 @@ export function normalizeDreamPreferences(value: unknown): DreamPreferences {
   const choice = <T extends string>(value: unknown, options: Record<T, unknown>, fallback: T): T =>
     typeof value === "string" && Object.hasOwn(options, value) ? (value as T) : fallback;
   return {
+    layout: choice(saved.layout, DREAM_LAYOUTS, "dashboard"),
     slots: Array.isArray(saved.slots)
       ? Array.from({ length: 5 }, (_, index) => {
           const slot: unknown = (saved.slots as unknown[])[index];

@@ -3,9 +3,12 @@ package com.t3tools.startuptest;
 import android.app.Instrumentation;
 import android.app.UiAutomation;
 import android.content.Intent;
+import android.content.ComponentName;
+import android.content.pm.PackageManager;
+import android.content.pm.ServiceInfo;
+import android.content.res.XmlResourceParser;
 import android.graphics.Bitmap;
 import android.graphics.Rect;
-import android.net.Uri;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.os.SystemClock;
@@ -17,6 +20,27 @@ import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 
 public final class StartupInstrumentation extends Instrumentation {
+  private ComponentName dreamSettings() throws Exception {
+    PackageManager manager = getContext().getPackageManager();
+    ServiceInfo service = manager.getServiceInfo(new ComponentName("com.t3tools.t3code.dream",
+        "expo.modules.t3nativecontrols.T3DreamService"), PackageManager.GET_META_DATA);
+    try (XmlResourceParser metadata = service.loadXmlMetaData(manager, "android.service.dream")) {
+      if (metadata == null) throw new AssertionError("Screen saver metadata missing");
+      while (metadata.next() != XmlResourceParser.START_TAG) { }
+      String ns = "http://schemas.android.com/apk/res/android";
+      int preview = metadata.getAttributeResourceValue(ns, "previewImage", 0);
+      if (preview == 0) throw new AssertionError("Screen saver picker preview missing");
+      manager.getResourcesForApplication(service.applicationInfo).getDrawable(preview, null);
+      String activity = metadata.getAttributeValue(ns, "settingsActivity");
+      if (activity == null) throw new AssertionError("Screen saver Customize activity missing");
+      ComponentName component = activity.contains("/") ? ComponentName.unflattenFromString(activity)
+          : new ComponentName(service.packageName, activity);
+      if (component == null || !manager.getActivityInfo(component, 0).exported) {
+        throw new AssertionError("Screen saver Customize activity is not accessible");
+      }
+      return component;
+    }
+  }
   @Override
   public void onCreate(Bundle arguments) {
     super.onCreate(arguments);
@@ -103,7 +127,8 @@ public final class StartupInstrumentation extends Instrumentation {
 
   private Rect textBounds(AccessibilityNodeInfo node, String text) {
     if (node == null) return null;
-    if (text.equalsIgnoreCase(node.getText() == null ? "" : node.getText().toString())) {
+    if (text.equalsIgnoreCase(node.getText() == null ? "" : node.getText().toString())
+        || text.equalsIgnoreCase(node.getContentDescription() == null ? "" : node.getContentDescription().toString())) {
       Rect bounds = new Rect();
       node.getBoundsInScreen(bounds);
       return bounds;
@@ -113,6 +138,30 @@ public final class StartupInstrumentation extends Instrumentation {
       if (found != null) return found;
     }
     return null;
+  }
+
+  private AccessibilityNodeInfo namedNode(AccessibilityNodeInfo node, String label) {
+    if (node == null) return null;
+    if (label.contentEquals(node.getContentDescription() == null ? "" : node.getContentDescription())) return node;
+    for (int index = 0; index < node.getChildCount(); index++) {
+      AccessibilityNodeInfo found = namedNode(node.getChild(index), label);
+      if (found != null) return found;
+    }
+    return null;
+  }
+
+  private void tapText(UiAutomation automation, String text) {
+    Rect bounds = textBounds(automation.getRootInActiveWindow(), text);
+    if (bounds == null || bounds.isEmpty()) throw new AssertionError("Missing control: " + text);
+    tap(automation, bounds.centerX(), bounds.centerY());
+  }
+
+  private void selectStyle(UiAutomation automation, String name) throws Exception {
+    String label = name + " style";
+    automation.executeAndWaitForEvent(() -> tapText(automation, label), event -> {
+      AccessibilityNodeInfo node = namedNode(automation.getRootInActiveWindow(), label);
+      return node != null && node.isChecked();
+    }, 30000);
   }
 
   private void tap(UiAutomation automation, int x, int y) {
@@ -140,6 +189,9 @@ public final class StartupInstrumentation extends Instrumentation {
     UiAutomation automation = getUiAutomation();
     boolean passed = false;
     try {
+      result.putString("stage", "screen saver picker metadata");
+      ComponentName customize = dreamSettings();
+      result.putString("pickerMetadata", "PASS");
       Intent launch = getContext().getPackageManager()
           .getLaunchIntentForPackage("com.t3tools.t3code.dream");
       if (launch == null) throw new AssertionError("Installed Dream launcher was not found");
@@ -160,14 +212,55 @@ public final class StartupInstrumentation extends Instrumentation {
       result.putString("main", "PASS");
       capture(automation, "main");
       result.putString("stage", "desk dashboard settings");
-      Intent settings = new Intent(Intent.ACTION_VIEW, Uri.parse("t3code-dream://settings/desk-dashboard"));
-      settings.setPackage("com.t3tools.t3code.dream");
+      Intent settings = new Intent().setComponent(customize);
       settings.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
       awaitScreen(automation, () -> getContext().startActivity(settings), "Tap a tile to change");
       capture(automation, "settings-tiles");
-      shell(automation, "input swipe 720 2400 720 700 300");
-      automation.waitForIdle(300, 30000);
-      capture(automation, "settings-more");
+      result.putString("customize", "PASS");
+      result.putString("stage", "Focus style selection");
+      selectStyle(automation, "Focus");
+      awaitScreen(automation, () -> startDream(automation), "Session status");
+      if (has(screenText(automation.getRootInActiveWindow()), "Tokens · 24h")) {
+        throw new AssertionError("Focus style still renders the small dashboard tiles");
+      }
+      capture(automation, "dream-focus");
+      awaitScreen(automation, () -> exitDream(automation), "Focus style");
+      result.putString("stage", "Clock style selection");
+      selectStyle(automation, "Clock");
+      awaitScreen(automation, () -> startDream(automation), "Session status unavailable");
+      capture(automation, "dream-clock");
+      automation.executeAndWaitForEvent(
+          () -> automation.setRotation(UiAutomation.ROTATION_FREEZE_90), event -> {
+            AccessibilityNodeInfo root = automation.getRootInActiveWindow();
+            if (root == null) return false;
+            Rect bounds = new Rect();
+            root.getBoundsInScreen(bounds);
+            return bounds.width() > bounds.height() && has(screenText(root), "Session status unavailable");
+          }, 30000);
+      capture(automation, "dream-clock-landscape");
+      awaitScreen(automation, () -> exitDream(automation), "Clock style");
+      automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
+      result.putString("styles", "PASS");
+      result.putString("stage", "tile selection");
+      awaitScreen(automation, () -> tapText(automation, "Large tile: Session status"), "Empty");
+      awaitScreen(automation, () -> tapText(automation, "Cost · 24h"), "Large tile: Cost · 24h");
+      awaitScreen(automation, () -> tapText(automation, "Large tile: Cost · 24h"), "Empty");
+      awaitScreen(automation, () -> tapText(automation, "Session status"), "Large tile: Session status");
+      result.putString("tileSelection", "PASS");
+      result.putString("stage", "cold Customize and saved style");
+      automation.executeAndWaitForEvent(() -> {
+        automation.injectInputEvent(new android.view.KeyEvent(
+            android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_HOME), true);
+        automation.injectInputEvent(new android.view.KeyEvent(
+            android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_HOME), true);
+      }, event -> launcherVisible(automation), 30000);
+      shell(automation, "am force-stop com.t3tools.t3code.dream");
+      awaitScreen(automation, () -> getContext().startActivity(settings), "Clock style");
+      AccessibilityNodeInfo clock = namedNode(automation.getRootInActiveWindow(), "Clock style");
+      if (clock == null || !clock.isChecked()) throw new AssertionError("Saved Clock style was lost");
+      result.putString("coldCustomize", "PASS");
+      selectStyle(automation, "Dashboard");
+      capture(automation, "settings-restored");
       awaitScreen(automation, () -> getContext().startActivity(launch), "Add environment");
       result.putString("stage", "first Dream start");
       awaitScreen(automation, () -> startDream(automation), "Session status");
@@ -217,6 +310,11 @@ public final class StartupInstrumentation extends Instrumentation {
       awaitScreen(automation, () -> getContext().startActivity(launch), "Add environment");
       capture(automation, "app-after-cold-dream");
       result.putString("dream", "PASS");
+      result.putString("stage", "system screen saver picker");
+      Intent picker = new Intent(android.provider.Settings.ACTION_DREAM_SETTINGS)
+          .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+      awaitScreen(automation, () -> getContext().startActivity(picker), "T3 Code");
+      capture(automation, "screen-saver-picker");
       passed = true;
     } catch (Throwable error) {
       result.putString("failure", error.toString());

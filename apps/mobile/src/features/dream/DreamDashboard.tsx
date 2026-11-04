@@ -93,6 +93,8 @@ export function DreamDashboard() {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const wide = size.width > size.height;
   const compact = size.height < 480;
+  const clockOnly = preferences.layout === "clock";
+  const focused = preferences.layout === "focus";
   const live = [...source.environmentIds].filter((id) => source.live.has(id));
   const counts = summarizeDreamThreads(
     source.selected.filter((thread) => source.live.has(thread.environmentId)),
@@ -305,7 +307,7 @@ export function DreamDashboard() {
   const connection = !source.ready
     ? { text: "Connecting…", color: STATUS_COLORS.idle }
     : source.environmentIds.size === 0
-      ? { text: "Pick projects in Settings › Desk dashboard", color: STATUS_COLORS.idle }
+      ? { text: "Connect a machine to see live status", color: STATUS_COLORS.idle }
       : live.length === 0
         ? { text: "Status unavailable", color: STATUS_COLORS.down }
         : partial
@@ -327,15 +329,18 @@ export function DreamDashboard() {
         { backgroundColor: colors.screen, padding: compact ? 16 : 28, gap: compact ? 12 : 20 },
       ]}
     >
-      <View style={[styles.header, { transform: shift }]}>
-        <View>
+      <View style={[styles.header, clockOnly && styles.clockHeader, { transform: shift }]}>
+        <View style={clockOnly && styles.clockFace}>
           <Text
+            adjustsFontSizeToFit
+            numberOfLines={1}
             style={{
               color: colors.foreground,
-              fontSize: compact ? 40 : 56,
+              fontSize: clockOnly ? (compact ? 100 : 112) : compact ? 40 : 56,
               fontWeight: "200",
               fontVariant: ["tabular-nums"],
               includeFontPadding: false,
+              textAlign: clockOnly ? "center" : "left",
             }}
           >
             {now.toLocaleTimeString(undefined, {
@@ -345,7 +350,13 @@ export function DreamDashboard() {
             })}
           </Text>
           {preferences.showDate ? (
-            <Text style={{ color: colors.secondary, fontSize: compact ? 14 : 18 }}>
+            <Text
+              style={{
+                color: colors.secondary,
+                fontSize: compact ? 14 : 18,
+                textAlign: clockOnly ? "center" : "left",
+              }}
+            >
               {now.toLocaleDateString(undefined, {
                 weekday: "long",
                 month: "long",
@@ -368,20 +379,40 @@ export function DreamDashboard() {
           </View>
         ) : null}
       </View>
-      <View
-        style={[styles.dashboard, { flexDirection: wide ? "row" : "column", transform: shift }]}
-      >
-        <View style={{ flex: wide ? 1.15 : 1 }}>{card(preferences.slots[0]!, 0, true)}</View>
-        <View style={[styles.smallGrid, { flex: wide ? 1 : 1.15 }]}>
-          {[0, 1].map((row) => (
-            <View key={row} style={styles.smallRow}>
-              {preferences.slots
-                .slice(1 + row * 2, 3 + row * 2)
-                .map((kpi, column) => card(kpi, 1 + row * 2 + column, false))}
-            </View>
-          ))}
+      {clockOnly ? (
+        <Text
+          numberOfLines={2}
+          style={{
+            color: colors.secondary,
+            textAlign: "center",
+            fontSize: compact ? 14 : 18,
+            transform: shift,
+          }}
+        >
+          {unavailable
+            ? "Session status unavailable"
+            : `${number(counts.working)} working · ${number(counts.input + counts.questions)} need you · ${number(counts.finished)} finished`}
+        </Text>
+      ) : focused ? (
+        <View style={[styles.focus, { transform: shift }]}>
+          {card(preferences.slots[0]!, 0, true)}
         </View>
-      </View>
+      ) : (
+        <View
+          style={[styles.dashboard, { flexDirection: wide ? "row" : "column", transform: shift }]}
+        >
+          <View style={{ flex: wide ? 1.15 : 1 }}>{card(preferences.slots[0]!, 0, true)}</View>
+          <View style={[styles.smallGrid, { flex: wide ? 1 : 1.15 }]}>
+            {[0, 1].map((row) => (
+              <View key={row} style={styles.smallRow}>
+                {preferences.slots
+                  .slice(1 + row * 2, 3 + row * 2)
+                  .map((kpi, column) => card(kpi, 1 + row * 2 + column, false))}
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
       {preferences.brightness !== "full" ? (
         <View
           pointerEvents="none"
@@ -397,6 +428,15 @@ export function DreamDashboard() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  focus: { flex: 1, width: "100%", maxWidth: 840, alignSelf: "center" },
+  clockHeader: {
+    flex: 1,
+    flexDirection: "column",
+    justifyContent: "center",
+    flexWrap: "nowrap",
+    gap: 24,
+  },
+  clockFace: { width: "100%", maxWidth: 720, gap: 8 },
   header: {
     flexDirection: "row",
     flexWrap: "wrap",

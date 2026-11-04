@@ -14,10 +14,12 @@ import {
   DREAM_BRIGHTNESS,
   DREAM_CLOCKS,
   DREAM_KPIS,
+  DREAM_LAYOUTS,
   DREAM_PALETTES,
   assignDreamSlot,
   normalizeDreamPreferences,
   type DreamKpi,
+  type DreamLayout,
   type DreamPreferences,
 } from "../../lib/dreamDashboard";
 import { scopedThreadKey } from "../../lib/scopedEntities";
@@ -34,9 +36,70 @@ const KPI_ACTIONS = Object.entries(DREAM_KPIS).map(([id, title]) => ({
 }));
 
 const options = <Value extends string>(labels: Record<Value, string>) =>
-  (Object.keys(labels) as Value[]).map((value) => ({ value, label: labels[value] }));
+  (Object.keys(labels) as Value[])
+    .sort((first, second) => (first === "system" ? -1 : second === "system" ? 1 : 0))
+    .map((value) => ({ value, label: labels[value] }));
 
 const defaults = normalizeDreamPreferences(undefined);
+const layoutDescriptions: Record<DreamLayout, string> = {
+  dashboard: "One large tile and four small tiles. Everything at a glance.",
+  focus: "Your large tile fills the display. Other tile choices are kept for Dashboard.",
+  clock: "A quiet clock with a short session summary. Your tile choices are kept for Dashboard.",
+};
+
+function LayoutChoice(props: {
+  readonly selected: DreamLayout;
+  readonly disabled: boolean;
+  readonly onSelect: (layout: DreamLayout) => void;
+}) {
+  return (
+    <View className="flex-row gap-2 px-4 py-4">
+      {options(DREAM_LAYOUTS).map(({ value, label }) => (
+        <Pressable
+          key={value}
+          accessibilityRole="radio"
+          accessibilityLabel={`${label} style`}
+          accessibilityState={{ checked: props.selected === value, disabled: props.disabled }}
+          disabled={props.disabled}
+          onPress={() => props.onSelect(value)}
+          className={cn(
+            "flex-1 gap-3 rounded-2xl border p-2 active:opacity-70",
+            props.selected === value ? "border-primary bg-primary/10" : "border-border-subtle",
+            props.disabled && "opacity-45",
+          )}
+        >
+          <View className="h-28 items-center justify-center gap-2 rounded-xl bg-subtle p-2">
+            <Text
+              textRole={value === "clock" ? "title" : "label"}
+              className="font-t3-medium"
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
+              09:41
+            </Text>
+            {value !== "clock" ? (
+              <>
+                <View className="w-full flex-1 rounded-md bg-foreground/10" />
+                {value === "dashboard" ? (
+                  <View className="w-full flex-row gap-1">
+                    {[0, 1, 2, 3].map((index) => (
+                      <View key={index} className="h-3 flex-1 rounded-sm bg-foreground/10" />
+                    ))}
+                  </View>
+                ) : null}
+              </>
+            ) : (
+              <View className="h-1 w-10 rounded-full bg-foreground/20" />
+            )}
+          </View>
+          <Text textRole="footnote" className="text-center font-t3-medium">
+            {label}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
 
 function SlotTile(props: {
   readonly kpi: DreamKpi;
@@ -135,6 +198,9 @@ export function SettingsDeskDashboardRouteScreen() {
         contentContainerClassName="gap-6 px-5 pt-4"
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
       >
+        <SettingsSection title="Style" footer={layoutDescriptions[preferences.layout]}>
+          <LayoutChoice selected={preferences.layout} disabled={!ready} onSelect={set("layout")} />
+        </SettingsSection>
         <SettingsSection
           title="Tiles"
           footer="Tap a tile to change what it shows. Picking a metric that is already on the dashboard swaps the two. Usage and quota cover the selected machines, not single sessions."
@@ -280,7 +346,7 @@ export function SettingsDeskDashboardRouteScreen() {
 
         <SettingsSection
           title="Android screen saver"
-          footer="In Android’s screen saver settings, choose T3 Code desk dashboard, then use Preview. It shows while charging or docked, and a touch exits."
+          footer="In Android’s screen saver settings, choose T3 Code. Preview starts the screen saver; Customize returns here. It shows while charging or docked, and a touch exits."
         >
           <ListActionRow
             label="Open screen saver settings"
@@ -294,6 +360,7 @@ export function SettingsDeskDashboardRouteScreen() {
             disabled={!ready || !customized}
             onPress={() =>
               save({
+                layout: defaults.layout,
                 slots: defaults.slots,
                 palette: defaults.palette,
                 clock: defaults.clock,

@@ -51,6 +51,14 @@ it("reads the legacy monochrome switch and defaults display options for older sa
     showDate: false,
     pixelShift: false,
   });
+  expect(normalizeDreamPreferences(undefined)).toMatchObject({ layout: "dashboard" });
+  expect(normalizeDreamPreferences({ layout: "unknown" })).toMatchObject({ layout: "dashboard" });
+  for (const layout of ["focus", "clock"]) {
+    expect(normalizeDreamPreferences({ layout, slots: ["cost", "tokens"] })).toMatchObject({
+      layout,
+      slots: ["cost", "tokens", "", "", ""],
+    });
+  }
 });
 
 it("scopes selection by environment as well as project and thread, and an empty selection stays empty", () => {
