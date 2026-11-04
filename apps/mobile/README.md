@@ -23,8 +23,10 @@ Use **Android screen saver settings** to choose **T3 Code desk dashboard**, prev
 and enable it while charging. Touching the screen exits normally. The display supports
 portrait and landscape, with muted dark colors and an optional monochrome accent.
 
-The manual **Personal Android Dream APK** GitHub workflow builds this variant and keeps
-the APK in a draft release on this fork. Device testing is separate from a successful build.
+The manual **Personal Android Dream APK** GitHub workflow builds this variant with the
+documented public T3 Connect configuration from `.env.example` and keeps the APK in a
+draft release on this fork. Sign in to T3 Connect again in Dream to access your machines.
+Device testing is separate from a successful build.
 
 > [!NOTE]
 > To install the released app from the App Store or Google Play, see [Mobile app](../../docs/user/install.md#mobile-app). This guide covers building it from source.

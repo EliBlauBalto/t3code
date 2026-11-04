@@ -17,15 +17,26 @@ jobs:
       NODE_OPTIONS: --max-old-space-size=4096
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
       - uses: voidzero-dev/setup-vp@250f29ce396baf5e8f24498e17c0dfdebabc26eb
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
       - run: vp i --frozen-lockfile
+      - run: vp run check:changed HEAD^
+      - name: Enable documented public T3 Connect configuration
+        run: cp .env.example .env
       - name: Generate Android project
         working-directory: apps/mobile
         run: vp exec expo prebuild --platform android --no-install
+      - name: Limit intermediate native debug output on the standard runner
+        working-directory: apps/mobile/android
+        run: |
+          cat >> app/build.gradle <<'GRADLE'
+          android.defaultConfig.externalNativeBuild.cmake.arguments "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=-O2 -g0 -DNDEBUG", "-DCMAKE_C_FLAGS_RELWITHDEBINFO=-O2 -g0 -DNDEBUG"
+          GRADLE
       - name: Build standalone ARM64 APK
         working-directory: apps/mobile/android
         run: ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a --max-workers=2
