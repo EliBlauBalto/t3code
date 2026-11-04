@@ -107,6 +107,7 @@ public final class StartupInstrumentation extends Instrumentation {
 
   private boolean launcherVisible(UiAutomation automation) {
     AccessibilityNodeInfo root = automation.getRootInActiveWindow();
+    if (dismissSystemDialog(automation, screenText(root))) return false;
     return root != null && "com.google.android.apps.nexuslauncher".contentEquals(
         root.getPackageName() == null ? "" : root.getPackageName());
   }
@@ -160,6 +161,7 @@ public final class StartupInstrumentation extends Instrumentation {
   private void selectStyle(UiAutomation automation, String name) throws Exception {
     String label = name + " style";
     automation.executeAndWaitForEvent(() -> tapText(automation, label), event -> {
+      if (dismissSystemDialog(automation, screenText(automation.getRootInActiveWindow()))) return false;
       AccessibilityNodeInfo node = namedNode(automation.getRootInActiveWindow(), label);
       return node != null && node.isChecked();
     }, 30000);
@@ -233,6 +235,7 @@ public final class StartupInstrumentation extends Instrumentation {
       automation.executeAndWaitForEvent(
           () -> automation.setRotation(UiAutomation.ROTATION_FREEZE_90), event -> {
             AccessibilityNodeInfo root = automation.getRootInActiveWindow();
+            if (dismissSystemDialog(automation, screenText(root))) return false;
             if (root == null) return false;
             Rect bounds = new Rect();
             root.getBoundsInScreen(bounds);
@@ -271,6 +274,7 @@ public final class StartupInstrumentation extends Instrumentation {
           () -> automation.setRotation(UiAutomation.ROTATION_FREEZE_90),
           event -> {
             AccessibilityNodeInfo root = automation.getRootInActiveWindow();
+            if (dismissSystemDialog(automation, screenText(root))) return false;
             if (root == null) return false;
             Rect bounds = new Rect();
             root.getBoundsInScreen(bounds);
