@@ -5,6 +5,7 @@ import android.app.UiAutomation;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Rect;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.os.SystemClock;
@@ -158,6 +159,16 @@ public final class StartupInstrumentation extends Instrumentation {
           || text.contains("taking longer to start")) throw new AssertionError(text);
       result.putString("main", "PASS");
       capture(automation, "main");
+      result.putString("stage", "desk dashboard settings");
+      Intent settings = new Intent(Intent.ACTION_VIEW, Uri.parse("t3code-dream://settings/desk-dashboard"));
+      settings.setPackage("com.t3tools.t3code.dream");
+      settings.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+      awaitScreen(automation, () -> getContext().startActivity(settings), "Tap a tile to change");
+      capture(automation, "settings-tiles");
+      shell(automation, "input swipe 720 2400 720 700 300");
+      automation.waitForIdle(300, 30000);
+      capture(automation, "settings-more");
+      awaitScreen(automation, () -> getContext().startActivity(launch), "Add environment");
       result.putString("stage", "first Dream start");
       awaitScreen(automation, () -> startDream(automation), "Session status");
       capture(automation, "dream-portrait");
@@ -192,7 +203,7 @@ public final class StartupInstrumentation extends Instrumentation {
             automation.injectInputEvent(new android.view.KeyEvent(
                 android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_HOME), true);
           }, event -> launcherVisible(automation), 30000);
-      shell(automation, "am kill --user current com.t3tools.t3code.dream");
+      shell(automation, "am force-stop com.t3tools.t3code.dream");
       awaitScreen(automation, () -> startDream(automation), "Session status");
       String dreamPid = shell(automation, "pidof com.t3tools.t3code.dream");
       if (previousPid.isEmpty() || dreamPid.isEmpty() || previousPid.equals(dreamPid)) {

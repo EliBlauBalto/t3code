@@ -141,7 +141,7 @@ export function DreamDashboard() {
       case "tokens":
         return {
           value: usageReady ? formatTokens(usage.merged.totalTokens) : "N/A",
-          detail: "Selected machines · 24h",
+          detail: "Selected machines",
           alert: false,
         };
       case "cost":
@@ -150,10 +150,7 @@ export function DreamDashboard() {
             usageReady && usage.merged.costQuality.unpricedShare === 0
               ? formatUsd(usage.merged.costUsd)
               : "N/A",
-          detail:
-            usage.merged.costQuality.modelPricedShare > 0
-              ? "Estimated · selected machines"
-              : "Reported · selected machines",
+          detail: usage.merged.costQuality.modelPricedShare > 0 ? "Estimated" : "Reported",
           alert: false,
         };
       case "limits":
@@ -400,7 +397,13 @@ export function DreamDashboard() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 16 },
+  header: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+  },
   pill: {
     flexDirection: "row",
     alignItems: "center",
