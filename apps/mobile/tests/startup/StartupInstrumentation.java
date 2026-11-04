@@ -318,8 +318,14 @@ public final class StartupInstrumentation extends Instrumentation {
       result.putString("stage", "system screen saver picker");
       Intent picker = new Intent(android.provider.Settings.ACTION_DREAM_SETTINGS)
           .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-      awaitScreen(automation, () -> getContext().startActivity(picker), "T3 Code");
+      awaitScreen(automation, () -> getContext().startActivity(picker), "Customize");
       capture(automation, "screen-saver-picker");
+      if (!has(screenText(automation.getRootInActiveWindow()), "T3 Code")) {
+        throw new AssertionError("T3 Code is missing from Android's picker");
+      }
+      awaitScreen(automation, () -> tapText(automation, "Customize"), "Dashboard style");
+      capture(automation, "system-customize");
+      result.putString("systemCustomize", "PASS");
       passed = true;
     } catch (Throwable error) {
       result.putString("failure", error.toString());
