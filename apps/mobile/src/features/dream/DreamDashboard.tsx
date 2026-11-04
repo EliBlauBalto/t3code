@@ -8,12 +8,15 @@ import { useUsage } from "../../state/usage";
 import { DREAM_KPIS, summarizeDreamThreads, type DreamKpi } from "../../lib/dreamDashboard";
 import {
   AppearancePreferencesProvider,
+  installAppearanceRuntime,
   useAppearancePreferences,
 } from "../settings/appearance/AppearancePreferencesProvider";
 import { buildSubscriptionUsageSnapshot } from "../../widgets/subscriptionUsageSnapshot";
 import { installSubscriptionUsageRefresh } from "../../widgets/useSubscriptionUsage";
 import { useDreamClock, useDreamSources } from "./useDreamDashboard";
 import { CloudAuthProvider } from "../cloud/CloudAuthProvider";
+import { useAppStartupReady } from "../../AppStartup";
+import "../../../global.css";
 
 const native = requireOptionalNativeModule<{ is24HourFormat(): boolean }>("T3NativeControls");
 
@@ -33,7 +36,8 @@ export function DreamDashboard() {
   const source = useDreamSources();
   const { now, window } = useDreamClock();
   const usage = useUsage(window, source.environmentIds);
-  const { themeVariablesByAppearance } = useAppearancePreferences();
+  const { themeVariablesByAppearance, isReady } = useAppearancePreferences();
+  useAppStartupReady(isReady);
   const colors = source.preferences.monochrome
     ? {
         ...themeVariablesByAppearance.dark,
@@ -82,8 +86,15 @@ export function DreamDashboard() {
     : colors["--color-primary"];
   const foreground = colors["--color-foreground"];
   const secondary = colors["--color-foreground-secondary"];
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reuses the existing quota refresher only for the lifetime of the visible dream
-  useEffect(() => installSubscriptionUsageRefresh(() => true), []);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- owns appearance and quota refresh while the standalone dream surface is mounted
+  useEffect(() => {
+    const releaseAppearance = installAppearanceRuntime();
+    const releaseUsage = installSubscriptionUsageRefresh(() => true);
+    return () => {
+      releaseUsage();
+      releaseAppearance();
+    };
+  }, []);
 
   const number = (value: number) => (unavailable ? "N/A" : `${partial ? "~" : ""}${value}`);
   const metric = (kpi: DreamKpi) => {

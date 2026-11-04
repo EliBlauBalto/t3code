@@ -9,7 +9,11 @@ import { environmentShell } from "../../state/shell";
 import { environmentThreadShells } from "../../state/threads";
 import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
 import { scopedProjectKey } from "../../lib/scopedEntities";
-import { normalizeDreamPreferences, selectDreamThreads } from "../../lib/dreamDashboard";
+import {
+  normalizeDreamPreferences,
+  selectDreamThreads,
+  type DreamPreferences,
+} from "../../lib/dreamDashboard";
 
 const sourcesAtom = Atom.make((get) => {
   const catalog = get(environmentCatalog.catalogValueAtom);
@@ -63,7 +67,17 @@ export function useDreamSources() {
     preferences,
     selected,
     environmentIds,
-    save: (dreamDashboard: typeof preferences) => save({ dreamDashboard }),
+    save: (
+      patch: Partial<DreamPreferences> | ((current: DreamPreferences) => Partial<DreamPreferences>),
+    ) =>
+      save({
+        transform: (current) => {
+          const saved = normalizeDreamPreferences(current.dreamDashboard);
+          return {
+            dreamDashboard: { ...saved, ...(typeof patch === "function" ? patch(saved) : patch) },
+          };
+        },
+      }),
   };
 }
 

@@ -19,10 +19,9 @@ export function DreamSettingsSection() {
   const [drag, setDrag] = useState<{ index: number; translation: number } | null>(null);
   const rowHeights = useRef<number[]>([]);
   const move = (from: number, to: number) =>
-    save({
-      ...preferences,
-      slots: moveDreamSlot(preferences.slots, from, Math.max(0, Math.min(4, to))),
-    });
+    save((current) => ({
+      slots: moveDreamSlot(current.slots, from, Math.max(0, Math.min(4, to))),
+    }));
   const toggle = (values: readonly string[], key: string) =>
     values.includes(key) ? values.filter((value) => value !== key) : [...values, key];
   const options = source.threads.filter(
@@ -80,9 +79,11 @@ export function DreamSettingsSection() {
                 onPressAction={({ nativeEvent }) => {
                   const next = nativeEvent.event === "empty" ? "" : nativeEvent.event;
                   if (!Object.hasOwn(DREAM_KPIS, next)) return;
-                  const slots = [...preferences.slots];
-                  slots[index] = next as DreamKpi;
-                  save({ ...preferences, slots });
+                  save((current) => {
+                    const slots = [...current.slots];
+                    slots[index] = next as DreamKpi;
+                    return { slots };
+                  });
                 }}
               >
                 <Button label={DREAM_KPIS[kpi]} tone="text" disabled={!ready} onPress={() => {}} />
@@ -110,13 +111,13 @@ export function DreamSettingsSection() {
         label="Monochrome"
         value={preferences.monochrome}
         disabled={!ready}
-        onValueChange={(monochrome) => save({ ...preferences, monochrome })}
+        onValueChange={(monochrome) => save({ monochrome })}
       />
       <SettingsSwitchRow
         label="All projects and sessions"
         value={preferences.all}
         disabled={!ready}
-        onValueChange={(all) => save({ ...preferences, all })}
+        onValueChange={(all) => save({ all })}
       />
       {!preferences.all ? (
         <View className="flex-row flex-wrap gap-3 px-4 py-3">
@@ -129,7 +130,7 @@ export function DreamSettingsSection() {
                 : ("off" as const),
             }))}
             onPressAction={({ nativeEvent }) =>
-              save({ ...preferences, projects: toggle(preferences.projects, nativeEvent.event) })
+              save((current) => ({ projects: toggle(current.projects, nativeEvent.event) }))
             }
           >
             <Button
@@ -149,7 +150,7 @@ export function DreamSettingsSection() {
                 : ("off" as const),
             }))}
             onPressAction={({ nativeEvent }) =>
-              save({ ...preferences, threads: toggle(preferences.threads, nativeEvent.event) })
+              save((current) => ({ threads: toggle(current.threads, nativeEvent.event) }))
             }
           >
             <Button

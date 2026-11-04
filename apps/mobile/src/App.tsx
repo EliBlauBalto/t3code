@@ -2,8 +2,7 @@ import { installPermissionUpdateNotice } from "./features/connection/permissionU
 import { installComposerAttachmentUploads } from "./state/composer-attachment-uploads";
 import { installThreadOutboxDelivery } from "./state/threadOutboxDelivery";
 import * as Linking from "expo-linking";
-import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import { useState } from "react";
 import { StatusBar } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -94,6 +93,7 @@ import {
 import { pruneNewTaskFlowStates } from "./features/threads/new-task-flow-state";
 import { pruneNewTaskBranchCheckouts } from "./features/threads/NewTaskDraftRouteScreen";
 import { installAppUpdateChecks } from "./features/updates/app-updates";
+import { useAppStartupReady } from "./AppStartup";
 
 import "../global.css";
 
@@ -101,7 +101,6 @@ if (process.env.EXPO_PUBLIC_SHOWCASE === "1") {
   prepareNativeShowcaseCapture();
 }
 
-void SplashScreen.preventAutoHideAsync().catch(() => {});
 void hydrateWorkspaceSelections();
 
 const linkingConfig = {
@@ -203,17 +202,6 @@ disposeOnFoundationReplace(typeof module === "undefined" ? undefined : module.ho
   for (const dispose of appServiceDisposers) dispose();
 });
 
-function SplashScreenCoordinator() {
-  const { isReady } = useAppearancePreferences();
-
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- hides the native splash screen once appearance preferences have loaded
-  useEffect(() => {
-    if (isReady) void SplashScreen.hide();
-  }, [isReady]);
-
-  return null;
-}
-
 export default function App() {
   return (
     <RegistryContext.Provider value={appAtomRegistry}>
@@ -227,12 +215,13 @@ export default function App() {
 }
 
 function AppContent() {
-  const { themeAppearance } = useAppearancePreferences();
+  const { themeAppearance, isReady } = useAppearancePreferences();
   const navigationTheme = useMobileNavigationTheme();
+  const [navigationReady, setNavigationReady] = useState(false);
+  useAppStartupReady(isReady && navigationReady);
 
   return (
     <>
-      <SplashScreenCoordinator />
       <SubscriptionUsageCoordinator />
       <GestureHandlerRootView className="flex-1">
         <KeyboardProvider statusBarTranslucent>
@@ -244,7 +233,10 @@ function AppContent() {
                 <Navigation
                   ref={attachRootNavigation}
                   linking={appLinking}
-                  onReady={handleNavigationReady}
+                  onReady={() => {
+                    handleNavigationReady();
+                    setNavigationReady(true);
+                  }}
                   theme={navigationTheme}
                   onStateChange={handleNavigationStateChange}
                 />
