@@ -59,6 +59,7 @@ public final class StartupInstrumentation extends Instrumentation {
   }
 
   private int systemDialogs = 0;
+  private int systemGuides = 0;
 
   private static boolean has(String text, String expected) {
     return text.toLowerCase(java.util.Locale.ROOT).contains(expected.toLowerCase(java.util.Locale.ROOT));
@@ -67,6 +68,15 @@ public final class StartupInstrumentation extends Instrumentation {
   // The emulator's own launcher can stall on a slow runner and cover the app with a system dialog.
   // Tap Wait so the app under test stays measurable; the count is reported, not hidden.
   private boolean dismissSystemDialog(UiAutomation automation, String text) {
+    AccessibilityNodeInfo root = automation.getRootInActiveWindow();
+    if (root != null && "android".contentEquals(root.getPackageName())
+        && has(text, "Viewing full screen") && has(text, "Got it")) {
+      Rect confirm = textBounds(root, "Got it");
+      if (confirm == null) return false;
+      systemGuides++;
+      tap(automation, confirm.centerX(), confirm.centerY());
+      return true;
+    }
     if (!has(text, "isn't responding") && !has(text, "isn’t responding")) return false;
     if (!has(text, "Pixel Launcher")) throw new AssertionError("App stopped responding: " + text);
     Rect wait = textBounds(automation.getRootInActiveWindow(), "Wait");
@@ -333,6 +343,7 @@ public final class StartupInstrumentation extends Instrumentation {
       String text = screenText(automation.getRootInActiveWindow());
       result.putString("screen", text);
       result.putString("systemDialogsDismissed", String.valueOf(systemDialogs));
+      result.putString("systemGuidesDismissed", String.valueOf(systemGuides));
       result.putString("startup", passed ? "PASS" : "FAIL");
       try {
         capture(automation, "screen");
