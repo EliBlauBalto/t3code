@@ -14,18 +14,20 @@ configuration; configure your own signing key before distributing builds. It doe
 the upstream Expo project. `vp run config:dream` inspects its configuration. The existing
 development, preview, and production variants remain available explicitly.
 
-After installing, pair your servers and open **Settings > Appearance > Desk dashboard**.
-Choose the five KPIs, drag their priority order, and select projects or sessions. The first
-slot is large; four smaller slots and a separate clock complete the display. Empty slots
+After installing, pair your servers and open **Settings > Desk dashboard**. Tap a tile to
+choose its metric, pick colors (theme, monochrome, or amber night), brightness, clock format,
+date and status line, and choose which projects or sessions feed the status tiles. The first
+tile is large; four smaller tiles and a separate clock complete the display. Empty tiles
 are allowed. Usage and quota totals retain T3's existing machine scope.
 
-Use **Android screen saver settings** to choose **T3 Code desk dashboard**, preview it,
+Use **Open screen saver settings** to choose **T3 Code desk dashboard**, preview it,
 and enable it while charging. Touching the screen exits normally. The display supports
-portrait and landscape, with muted dark colors and an optional monochrome accent.
+portrait and landscape.
 
-The manual **Personal Android Dream APK** GitHub workflow builds this variant with the
-documented public T3 Connect configuration from `.env.example` and keeps the APK in a
-draft release on this fork. Sign in to T3 Connect again in Dream to access your machines.
+The manual **Personal Android Dream APK** GitHub workflow builds this variant without
+T3 Connect: its package ID is not registered with T3's sign-in service, so cloud sign-in
+cannot complete. Pair machines directly from **Settings > Environments** with a pairing
+link or QR code, and keep the APK in a draft release on this fork.
 Device testing is separate from a successful build.
 
 > [!NOTE]

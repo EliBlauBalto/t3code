@@ -77,7 +77,7 @@ it.effect("preserves separate Dream setting changes submitted before the next re
       renderToString(
         createElement(RegistryContext.Provider, { value: registry }, createElement(CaptureSources)),
       );
-      sources[0]!.save({ monochrome: true });
+      sources[0]!.save({ palette: "mono" });
       sources[0]!.save({ all: false });
       yield* AtomRegistry.getResult(registry, updateMobilePreferencesAtom, {
         suspendOnWaiting: true,
@@ -86,7 +86,7 @@ it.effect("preserves separate Dream setting changes submitted before the next re
         baseFontSize: 18,
         dreamDashboard: {
           all: false,
-          monochrome: true,
+          palette: "mono",
           slots: ["status", "tokens", "cost", "limits", "working"],
         },
       });
@@ -97,7 +97,7 @@ it.effect("preserves separate Dream setting changes submitted before the next re
       });
       expect(storage.preferences.dreamDashboard).toMatchObject({
         all: false,
-        monochrome: true,
+        palette: "mono",
         projects: ["one:p", "two:p"],
       });
     } finally {

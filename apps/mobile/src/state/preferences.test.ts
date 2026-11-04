@@ -102,7 +102,7 @@ describe("mobile preferences state", () => {
           projects: ["env:project"],
           threads: ["env:thread"],
           slots: ["cost", "", "status", "limits", "tokens"],
-          monochrome: true,
+          palette: "amber",
         });
         const result = yield* Effect.gen(function* () {
           const store = yield* MobilePreferences.MobilePreferencesStore;

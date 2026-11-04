@@ -4,8 +4,7 @@ import { makeThreadShellFixture, makeRawThreadShell } from "../test-fixtures";
 import { presentThreadShell } from "@t3tools/client-runtime/state/models";
 import {
   normalizeDreamPreferences,
-  moveDreamSlot,
-  dreamDropIndex,
+  assignDreamSlot,
   selectDreamThreads,
   summarizeDreamThreads,
 } from "./dreamDashboard";
@@ -29,23 +28,29 @@ it("preserves empty slots and repairs invalid saved configuration without exceed
   expect(normalizeDreamPreferences({ projects: ["a", 2], all: false }).projects).toEqual(["a"]);
 });
 
-it("moves any KPI into the central slot while preserving every other slot including blanks", () => {
-  expect(dreamDropIndex([88, 140, 88, 88, 88], 0, 160)).toBe(1);
-  expect(dreamDropIndex([], 2, 160)).toBe(2);
-  expect(moveDreamSlot(["status", "tokens", "", "cost", "limits"], 3, 0)).toEqual([
-    "cost",
-    "status",
-    "tokens",
-    "",
-    "limits",
-  ]);
-  expect(moveDreamSlot(["status", "tokens", "", "cost", "limits"], 0, 4)).toEqual([
-    "tokens",
-    "",
-    "cost",
-    "limits",
-    "status",
-  ]);
+it("assigns a KPI to a slot, swapping with the slot that already shows it and allowing blanks", () => {
+  const slots = ["status", "tokens", "", "cost", "limits"] as const;
+  expect(assignDreamSlot(slots, 0, "cost")).toEqual(["cost", "tokens", "", "status", "limits"]);
+  expect(assignDreamSlot(slots, 1, "working")).toEqual(["status", "working", "", "cost", "limits"]);
+  expect(assignDreamSlot(slots, 1, "")).toEqual(["status", "", "", "cost", "limits"]);
+  expect(assignDreamSlot(slots, 9, "cost")).toBe(slots);
+});
+
+it("reads the legacy monochrome switch and defaults display options for older saved settings", () => {
+  expect(normalizeDreamPreferences({ monochrome: true }).palette).toBe("mono");
+  expect(normalizeDreamPreferences({ monochrome: true, palette: "amber" }).palette).toBe("amber");
+  expect(normalizeDreamPreferences({ palette: "neon", clock: "9", brightness: 1 })).toMatchObject({
+    palette: "theme",
+    clock: "system",
+    brightness: "full",
+    showDate: true,
+    showStatus: true,
+    pixelShift: true,
+  });
+  expect(normalizeDreamPreferences({ showDate: false, pixelShift: false })).toMatchObject({
+    showDate: false,
+    pixelShift: false,
+  });
 });
 
 it("scopes selection by environment as well as project and thread, and an empty selection stays empty", () => {

@@ -19,18 +19,38 @@ export const DREAM_KPIS = {
   "": "Empty",
 } as const;
 export type DreamKpi = keyof typeof DREAM_KPIS;
+export const DREAM_PALETTES = { theme: "Theme", mono: "Monochrome", amber: "Amber night" } as const;
+export type DreamPalette = keyof typeof DREAM_PALETTES;
+export const DREAM_CLOCKS = { system: "System", "12": "12-hour", "24": "24-hour" } as const;
+export type DreamClock = keyof typeof DREAM_CLOCKS;
+export const DREAM_BRIGHTNESS = { full: "Full", medium: "Medium", low: "Low" } as const;
+export type DreamBrightness = keyof typeof DREAM_BRIGHTNESS;
+export const DREAM_DIM_OPACITY: Record<DreamBrightness, number> = {
+  full: 0,
+  medium: 0.35,
+  low: 0.65,
+};
+
 export interface DreamPreferences {
   readonly slots: readonly DreamKpi[];
   readonly all: boolean;
   readonly projects: readonly string[];
   readonly threads: readonly string[];
-  readonly monochrome: boolean;
+  readonly palette: DreamPalette;
+  readonly clock: DreamClock;
+  readonly showDate: boolean;
+  readonly showStatus: boolean;
+  readonly brightness: DreamBrightness;
+  readonly pixelShift: boolean;
 }
+const DEFAULT_DREAM_SLOTS: readonly DreamKpi[] = ["status", "tokens", "cost", "limits", "working"];
 export function normalizeDreamPreferences(value: unknown): DreamPreferences {
   const saved =
     typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
   const strings = (value: unknown) =>
     Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
+  const choice = <T extends string>(value: unknown, options: Record<T, unknown>, fallback: T): T =>
+    typeof value === "string" && Object.hasOwn(options, value) ? (value as T) : fallback;
   return {
     slots: Array.isArray(saved.slots)
       ? Array.from({ length: 5 }, (_, index) => {
@@ -39,43 +59,31 @@ export function normalizeDreamPreferences(value: unknown): DreamPreferences {
             ? (slot as DreamKpi)
             : "";
         })
-      : ["status", "tokens", "cost", "limits", "working"],
+      : DEFAULT_DREAM_SLOTS,
     all: saved.all !== false,
     projects: strings(saved.projects),
     threads: strings(saved.threads),
-    monochrome: saved.monochrome === true,
+    // `monochrome` is the pre-palette switch.
+    palette: choice(saved.palette, DREAM_PALETTES, saved.monochrome === true ? "mono" : "theme"),
+    clock: choice(saved.clock, DREAM_CLOCKS, "system"),
+    showDate: saved.showDate !== false,
+    showStatus: saved.showStatus !== false,
+    brightness: choice(saved.brightness, DREAM_BRIGHTNESS, "full"),
+    pixelShift: saved.pixelShift !== false,
   };
 }
-export function moveDreamSlot(
+/** Puts a KPI in a slot; one already shown elsewhere trades places so none repeats. */
+export function assignDreamSlot(
   slots: readonly DreamKpi[],
-  from: number,
-  to: number,
+  index: number,
+  kpi: DreamKpi,
 ): readonly DreamKpi[] {
-  if (from < 0 || from >= slots.length || to < 0 || to >= slots.length) return slots;
+  if (index < 0 || index >= slots.length) return slots;
   const next = [...slots];
-  const [moved] = next.splice(from, 1);
-  next.splice(to, 0, moved!);
+  const elsewhere = kpi === "" ? -1 : next.findIndex((slot, at) => at !== index && slot === kpi);
+  if (elsewhere >= 0) next[elsewhere] = next[index]!;
+  next[index] = kpi;
   return next;
-}
-export function dreamDropIndex(heights: readonly number[], from: number, translation: number) {
-  const centers: number[] = [];
-  let offset = 0;
-  for (const height of heights) {
-    if (!Number.isFinite(height) || height <= 0) return from;
-    centers.push(offset + height / 2);
-    offset += height;
-  }
-  const start = centers[from];
-  if (start === undefined || !Number.isFinite(translation)) return from;
-  let target = from;
-  for (let index = 0; index < centers.length; index++) {
-    if (
-      Math.abs(centers[index]! - start - translation) <
-      Math.abs(centers[target]! - start - translation)
-    )
-      target = index;
-  }
-  return target;
 }
 export function selectDreamThreads(
   threads: readonly EnvironmentThreadShell[],

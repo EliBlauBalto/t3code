@@ -27,8 +27,6 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - run: vp i --frozen-lockfile
       - run: vp run check:changed HEAD^
-      - name: Enable documented public T3 Connect configuration
-        run: cp .env.example .env
       - name: Generate Android project
         working-directory: apps/mobile
         run: vp exec expo prebuild --platform android --no-install

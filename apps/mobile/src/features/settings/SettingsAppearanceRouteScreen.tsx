@@ -8,7 +8,6 @@ import { CodeAppearanceSection } from "./appearance/sections/CodeAppearanceSecti
 import { TerminalAppearanceSection } from "./appearance/sections/TerminalAppearanceSection";
 import { TextAppearanceSection } from "./appearance/sections/TextAppearanceSection";
 import { ThemeAppearanceSection } from "./appearance/sections/ThemeAppearanceSection";
-import { DreamSettingsSection } from "../dream/DreamSettingsSection";
 
 export function SettingsAppearanceRouteScreen() {
   const insets = useSafeAreaInsets();
@@ -25,7 +24,6 @@ export function SettingsAppearanceRouteScreen() {
         }}
       >
         <ThemeAppearanceSection />
-        <DreamSettingsSection />
         {Platform.OS === "android" ? <AndroidNavigationAppearanceSection /> : null}
         <TextAppearanceSection />
         <TerminalAppearanceSection />

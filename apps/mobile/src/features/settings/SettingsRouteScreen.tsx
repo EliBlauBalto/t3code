@@ -246,6 +246,9 @@ function useSettingsIndexSections(): SettingsListSection[] {
           : []),
         ...(Platform.OS === "ios" ? [page("SettingsKeyboard", "keyboard", "Keyboard")] : []),
         page("SettingsMicrophone", "mic", "Microphone"),
+        ...(Platform.OS === "android"
+          ? [page("SettingsDeskDashboard", "sun.max", "Desk dashboard")]
+          : []),
       ],
     },
     {
