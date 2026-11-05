@@ -331,6 +331,13 @@ public final class StartupInstrumentation extends Instrumentation {
     tap(automation, bounds.centerX(), bounds.centerY());
   }
 
+  private void exitDreamToSettings(UiAutomation automation, Intent settings) throws Exception {
+    awaitScreen(automation, () -> exitDream(automation), "Chats");
+    if (!has(screenText(automation.getRootInActiveWindow()), "Dashboard style")) {
+      awaitScreen(automation, () -> getContext().startActivity(settings), "Dashboard style");
+    }
+  }
+
   @Override
   public void onStart() {
     Bundle result = new Bundle();
@@ -383,7 +390,7 @@ public final class StartupInstrumentation extends Instrumentation {
         throw new AssertionError("Focus style still renders the small dashboard tiles");
       }
       capture(automation, "dream-focus");
-      awaitScreen(automation, () -> exitDream(automation), "Desk dashboard");
+      exitDreamToSettings(automation, settings);
       result.putString("stage", "Clock style selection");
       selectStyle(automation, "Clock");
       awaitScreen(automation, () -> startDream(automation), "Connect your first machine");
@@ -398,7 +405,7 @@ public final class StartupInstrumentation extends Instrumentation {
             return bounds.width() > bounds.height() && has(screenText(root), "Connect your first machine");
           }, 30000);
       capture(automation, "dream-clock-landscape");
-      awaitScreen(automation, () -> exitDream(automation), "Desk dashboard");
+      exitDreamToSettings(automation, settings);
       automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
       result.putString("styles", "PASS");
       result.putString("stage", "tile selection");
@@ -519,9 +526,12 @@ public final class StartupInstrumentation extends Instrumentation {
             shell(automation, "wm density " + viewport[2]);
             automation.setRotation("1".equals(viewport[3]) ? UiAutomation.ROTATION_FREEZE_90 : UiAutomation.ROTATION_FREEZE_0);
             automation.executeAndWaitForEvent(() -> startDream(automation), event -> {
-              String view = screenText(automation.getRootInActiveWindow());
+              AccessibilityNodeInfo root = automation.getRootInActiveWindow();
+              String view = screenText(root);
+              Rect liveStatus = textBounds(root, "Live");
               if (dismissSystemDialog(automation, view)) return false;
               return has(view, "Clock".equals(style) ? "working" : "Session status")
+                  && liveStatus != null && !liveStatus.isEmpty()
                   && (!"Dashboard".equals(style)
                       || (has(view, "300K") && has(view, "$0.96") && has(view, "36%")));
             }, 30000);
@@ -561,10 +571,12 @@ public final class StartupInstrumentation extends Instrumentation {
                 coldRoot.getBoundsInScreen(coldScreen);
                 Rect status = textBounds(coldRoot, "Session status");
                 Rect tokens = textBounds(coldRoot, "Tokens · 24h");
+                Rect liveStatus = textBounds(coldRoot, "Live");
                 return coldScreen.width() > coldScreen.height()
                     && status != null && tokens != null && !status.isEmpty() && !tokens.isEmpty()
                     && coldScreen.contains(status) && coldScreen.contains(tokens)
                     && tokens.left > status.right
+                    && liveStatus != null && !liveStatus.isEmpty()
                     && has(coldText, "300K") && has(coldText, "$0.96") && has(coldText, "36%")
                     && !has(coldText, "Connect your first machine")
                     && !has(coldText, "Waiting for a connection");
@@ -579,7 +591,7 @@ public final class StartupInstrumentation extends Instrumentation {
                   () -> exitDream(automation), event -> launcherVisible(automation), 30000);
               awaitScreen(automation, () -> getContext().startActivity(settings), "Dashboard style");
             } else {
-              awaitScreen(automation, () -> exitDream(automation), "Desk dashboard");
+              exitDreamToSettings(automation, settings);
             }
           }
           shell(automation, "wm size reset");
@@ -607,7 +619,7 @@ public final class StartupInstrumentation extends Instrumentation {
         result.putString("clockFinal", clockText(automation));
         capture(automation, "live-clock-after-advancement");
         result.putString("clockAdvancement", "PASS");
-        awaitScreen(automation, () -> exitDream(automation), "Desk dashboard");
+        exitDreamToSettings(automation, settings);
         selectStyle(automation, "Dashboard");
         selectLargeTile(automation, "Session status", "Tokens · 24h");
         String previousFontScale = shell(automation, "settings get system font_scale");
@@ -621,7 +633,7 @@ public final class StartupInstrumentation extends Instrumentation {
               awaitScreen(automation, () -> startDream(automation), "Tokens · 24h");
               capture(automation, "small-status-font-" + fontScale.replace('.', '-')
                   + (rotation == 0 ? "-portrait" : "-landscape"));
-              awaitScreen(automation, () -> exitDream(automation), "Desk dashboard");
+              exitDreamToSettings(automation, settings);
             }
           }
           result.putString("smallStatusCaptures", "CAPTURED");
