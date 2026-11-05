@@ -236,15 +236,16 @@ public final class StartupInstrumentation extends Instrumentation {
       if (dismissSystemDialog(automation, view) || !dreamVisible(root)) return false;
       Rect bounds = new Rect();
       root.getBoundsInScreen(bounds);
-      if ((bounds.width() > bounds.height()) != landscape || textBounds(root, "Live") == null
+      Rect live = textBounds(root, "Live");
+      String clockValue = clockText(automation);
+      Rect clock = clockValue.isEmpty() ? null : textBounds(root, clockValue);
+      if ((bounds.width() > bounds.height()) != landscape
+          || live == null || live.isEmpty() || !bounds.contains(live)
+          || clock == null || clock.isEmpty() || !bounds.contains(clock)
           || (failedCount > 0 && !has(view, failedCount + " failed"))) return false;
       if ("Clock".equals(style)) {
-        String clockValue = clockText(automation);
-        if (clockValue.isEmpty()) return false;
-        Rect clock = textBounds(root, clockValue);
         Rect summary = phraseBounds(root, "need you");
-        return clock != null && !clock.isEmpty() && bounds.contains(clock)
-            && summary != null && !summary.isEmpty() && bounds.contains(summary);
+        return summary != null && !summary.isEmpty() && bounds.contains(summary);
       }
       Rect status = compactStatus ? phraseBounds(root, "Session status.")
           : textBounds(root, "Session status");
@@ -745,14 +746,14 @@ public final class StartupInstrumentation extends Instrumentation {
             selectStyle(automation, style);
             for (int rotation = 0; rotation < 2; rotation++) {
               result.putString("stage", "large text " + style + " rotation " + rotation);
-              automation.setRotation(rotation == 0
-                  ? UiAutomation.ROTATION_FREEZE_0 : UiAutomation.ROTATION_FREEZE_90);
               try (BufferedReader recording = "Dashboard".equals(style) && rotation == 1
                   ? new BufferedReader(new InputStreamReader(new ParcelFileDescriptor.AutoCloseInputStream(
-                      automation.executeShellCommand("screenrecord --time-limit 5 --bit-rate 2000000 "
+                      automation.executeShellCommand("screenrecord --size 1920x1080 --time-limit 5 --bit-rate 2000000 "
                           + new File(getContext().getExternalFilesDir(null),
                               "large-font-dashboard-landscape.mp4").getAbsolutePath()))))
                   : null) {
+                automation.setRotation(rotation == 0
+                    ? UiAutomation.ROTATION_FREEZE_0 : UiAutomation.ROTATION_FREEZE_90);
                 awaitPopulatedLayout(automation, style, rotation == 1,
                     "Dashboard".equals(style) || ("Focus".equals(style) && rotation == 1), false, failedCount);
                 capture(automation, "large-font-" + style.toLowerCase(java.util.Locale.ROOT)
@@ -847,6 +848,35 @@ public final class StartupInstrumentation extends Instrumentation {
         shell(automation, "wm size reset");
         shell(automation, "wm density reset");
         restoreSettingsAfterResize(automation, settings, launch);
+      }
+      result.putString("stage", "unsupported framework screen saver flag");
+      String overlayId = "com.android.shell:t3_dream_unsupported";
+      try {
+        result.putString("frameworkOverlayFabricate", shell(automation,
+            "su 0 cmd overlay fabricate --target android --name t3_dream_unsupported "
+                + "android:bool/config_dreamsSupported 0x12 0"));
+        result.putString("frameworkOverlayEnable",
+            shell(automation, "su 0 cmd overlay enable --user 0 " + overlayId));
+        String flag = shell(automation,
+            "su 0 cmd overlay lookup --user 0 android android:bool/config_dreamsSupported");
+        result.putString("frameworkDreamsFlag", flag);
+        if (!"false".equals(flag)) {
+          throw new AssertionError("Unsupported framework fixture did not set dreams flag false: " + flag);
+        }
+        ComponentName frameworkSettings = new Intent(android.provider.Settings.ACTION_DREAM_SETTINGS)
+            .resolveActivity(getContext().getPackageManager());
+        if (frameworkSettings == null) {
+          throw new AssertionError("Framework fixture also removed the settings destination");
+        }
+        result.putString("frameworkSettingsComponent", frameworkSettings.flattenToString());
+        automation.injectInputEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_HOME), true);
+        automation.injectInputEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_HOME), true);
+        shell(automation, "am force-stop " + appId);
+        awaitScreen(automation, () -> getContext().startActivity(settings), "Screen savers aren’t available");
+        capture(automation, "unsupported-framework-direct-link");
+        result.putString("frameworkCapabilityGate", "PASS");
+      } finally {
+        shell(automation, "su 0 cmd overlay disable --user 0 " + overlayId);
       }
       result.putString("stage", "unsupported device capability");
       ComponentName systemSettings = new Intent(android.provider.Settings.ACTION_DREAM_SETTINGS)
