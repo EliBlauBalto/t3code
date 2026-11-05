@@ -292,7 +292,10 @@ public final class StartupInstrumentation extends Instrumentation {
   private void selectLargeTile(UiAutomation automation, String current, String next) throws Exception {
     String currentLabel = "Large tile: " + current;
     scrollTo(automation, currentLabel);
-    awaitScreen(automation, () -> tapText(automation, currentLabel), "Empty");
+    automation.executeAndWaitForEvent(() -> tapText(automation, currentLabel), event -> {
+      Rect title = textBounds(automation.getRootInActiveWindow(), "Large tile");
+      return title != null && !title.isEmpty();
+    }, 30000);
     AccessibilityNodeInfo sheet = actionNode(automation.getRootInActiveWindow(), "Expand");
     if (sheet != null) {
       Rect title = textBounds(automation.getRootInActiveWindow(), "Large tile");
@@ -630,6 +633,7 @@ public final class StartupInstrumentation extends Instrumentation {
         result.putString("clockAdvancement", "PASS");
         exitDreamToSettings(automation, settings);
         selectStyle(automation, "Dashboard");
+        result.putString("stage", "small status font setup");
         selectLargeTile(automation, "Session status", "Tokens · 24h");
         String previousFontScale = shell(automation, "settings get system font_scale");
         try {
