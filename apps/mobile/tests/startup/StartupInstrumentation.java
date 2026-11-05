@@ -747,15 +747,24 @@ public final class StartupInstrumentation extends Instrumentation {
               result.putString("stage", "large text " + style + " rotation " + rotation);
               automation.setRotation(rotation == 0
                   ? UiAutomation.ROTATION_FREEZE_0 : UiAutomation.ROTATION_FREEZE_90);
-              awaitPopulatedLayout(automation, style, rotation == 1,
-                  "Dashboard".equals(style) || ("Focus".equals(style) && rotation == 1), false, failedCount);
-              capture(automation, "large-font-" + style.toLowerCase(java.util.Locale.ROOT)
-                  + (rotation == 0 ? "-portrait" : "-landscape"));
-              if ("Dashboard".equals(style) && rotation == 1) {
-                shell(automation, "screenrecord --time-limit 5 --bit-rate 2000000 "
-                    + new File(getContext().getExternalFilesDir(null),
-                        "large-font-dashboard-landscape.mp4").getAbsolutePath());
-                capture(automation, "large-font-dashboard-landscape-after-recording");
+              try (BufferedReader recording = "Dashboard".equals(style) && rotation == 1
+                  ? new BufferedReader(new InputStreamReader(new ParcelFileDescriptor.AutoCloseInputStream(
+                      automation.executeShellCommand("screenrecord --time-limit 5 --bit-rate 2000000 "
+                          + new File(getContext().getExternalFilesDir(null),
+                              "large-font-dashboard-landscape.mp4").getAbsolutePath()))))
+                  : null) {
+                awaitPopulatedLayout(automation, style, rotation == 1,
+                    "Dashboard".equals(style) || ("Focus".equals(style) && rotation == 1), false, failedCount);
+                capture(automation, "large-font-" + style.toLowerCase(java.util.Locale.ROOT)
+                    + (rotation == 0 ? "-portrait" : "-landscape"));
+                if (recording != null) {
+                  String output = recording.lines().collect(java.util.stream.Collectors.joining("\n"));
+                  try (FileOutputStream file = new FileOutputStream(new File(
+                      getContext().getExternalFilesDir(null), "rotation-recording.txt"))) {
+                    file.write(output.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                  }
+                  capture(automation, "large-font-dashboard-landscape-after-recording");
+                }
               }
               exitDreamToSettings(automation, settings);
             }
