@@ -375,6 +375,11 @@ public final class StartupInstrumentation extends Instrumentation {
     }
   }
 
+  private void restoreSettingsAfterResize(UiAutomation automation, Intent settings) throws Exception {
+    automation.waitForIdle(100, 30000);
+    awaitScreen(automation, () -> getContext().startActivity(settings), "Dashboard style");
+  }
+
   @Override
   public void onStart() {
     Bundle result = new Bundle();
@@ -556,6 +561,7 @@ public final class StartupInstrumentation extends Instrumentation {
           { "tablet-portrait", "1920x1200", "240", "1" }
         };
         for (String style : new String[] { "Dashboard", "Focus", "Clock" }) {
+          result.putString("stage", style + " style selection");
           selectStyle(automation, style);
           for (String[] viewport : sizes) {
             result.putString("stage", style + " " + viewport[0]);
@@ -599,6 +605,7 @@ public final class StartupInstrumentation extends Instrumentation {
           shell(automation, "wm size reset");
           shell(automation, "wm density reset");
           automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
+          restoreSettingsAfterResize(automation, settings);
         }
         result.putString("responsiveStyles", "PASS");
         result.putString("stage", "background Clock advancement");
@@ -646,6 +653,7 @@ public final class StartupInstrumentation extends Instrumentation {
           shell(automation, "wm size reset");
           shell(automation, "wm density reset");
           automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
+          restoreSettingsAfterResize(automation, settings);
         }
         selectLargeTile(automation, "Tokens · 24h", "Session status");
         result.putString("stage", "cold populated landscape layout");
@@ -690,7 +698,7 @@ public final class StartupInstrumentation extends Instrumentation {
             () -> exitDream(automation), event -> launcherVisible(automation), 30000);
         shell(automation, "wm size reset");
         shell(automation, "wm density reset");
-        awaitScreen(automation, () -> getContext().startActivity(settings), "Dashboard style");
+        restoreSettingsAfterResize(automation, settings);
       }
       result.putString("stage", "unsupported device capability");
       ComponentName systemSettings = new Intent(android.provider.Settings.ACTION_DREAM_SETTINGS)
