@@ -711,7 +711,7 @@ public final class StartupInstrumentation extends Instrumentation {
       result.putString("capabilityComponent", systemSettings.flattenToString());
       try {
         result.putString("capabilityDisableResult",
-            shell(automation, "pm disable-user --user 0 " + systemSettings.flattenToString()));
+            shell(automation, "pm disable --user 0 " + systemSettings.flattenToString()));
         ComponentName remainingSettings = new Intent(android.provider.Settings.ACTION_DREAM_SETTINGS)
             .resolveActivity(getContext().getPackageManager());
         result.putString("capabilityAfterDisable", remainingSettings == null
