@@ -147,6 +147,7 @@ it.effect(
   "ignores streaming-only shell changes while preserving quiet updates and navigation membership",
   () =>
     Effect.gen(function* () {
+      storage.preferences = {};
       const registry = AtomRegistry.make();
       const thread = makeThreadShellFixture({
         environmentId: EnvironmentId.make("env"),
