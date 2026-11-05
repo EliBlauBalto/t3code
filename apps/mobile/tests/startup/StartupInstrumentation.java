@@ -309,7 +309,7 @@ public final class StartupInstrumentation extends Instrumentation {
       capture(automation, "in-app-preview");
       automation.executeAndWaitForEvent(() -> tapText(automation, "Landscape preview"), event -> {
         AccessibilityNodeInfo option = namedNode(automation.getRootInActiveWindow(), "Landscape preview");
-        return option != null && option.isChecked();
+        return option != null && option.isSelected();
       }, 30000);
       capture(automation, "in-app-preview-landscape");
       awaitScreen(automation, () -> tapText(automation, "Close preview"), "Full-screen preview");
