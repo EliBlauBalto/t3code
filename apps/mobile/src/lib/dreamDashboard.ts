@@ -8,7 +8,7 @@ import { scopedProjectKey, scopedThreadKey } from "./scopedEntities";
 export const DREAM_KPIS = {
   status: "Session status",
   working: "Working",
-  input: "Approvals",
+  input: "Requests",
   questions: "Questions",
   finished: "Finished",
   failed: "Failed",

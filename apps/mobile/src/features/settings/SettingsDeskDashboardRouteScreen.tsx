@@ -32,6 +32,7 @@ import { SettingsSwitchRow } from "./components/SettingsSwitchRow";
 const KPI_ACTIONS = Object.entries(DREAM_KPIS).map(([id, title]) => ({
   id: id || "empty",
   title,
+  subtitle: id === "input" ? "Approvals and guest messages" : undefined,
 }));
 
 const options = <Value extends string>(labels: Record<Value, string>) =>
@@ -179,6 +180,15 @@ export function SettingsDeskDashboardRouteScreen() {
     (thread) => thread.archivedAt === null && thread.deletedAt === null,
   );
   const canOpenScreenSaver = useMemo(() => supportsDream(), []);
+  const unavailableOption = (noun: string) => (key: string) => {
+    const machine = [...source.presentations].find(([id]) => key.startsWith(`${id}:`));
+    return {
+      title: `Saved ${noun} ${machine ? key.slice(machine[0].length + 1) : key}`,
+      subtitle: machine
+        ? `${machine[1].entry.target.label} · ${source.live.has(machine[0]) ? "No longer listed" : "Offline"}`
+        : "Removed or unknown machine",
+    };
+  };
   const customized = (Object.keys(defaults) as (keyof DreamPreferences)[]).some(
     (key) =>
       !["all", "projects", "threads"].includes(key) &&
@@ -323,6 +333,7 @@ export function SettingsDeskDashboardRouteScreen() {
                       title: project.title,
                     }))}
                     selected={preferences.projects}
+                    unavailableOption={unavailableOption("project")}
                     disabled={!source.initialized}
                     onClear={() => save({ projects: [] })}
                     onSelect={(id) =>
@@ -350,6 +361,7 @@ export function SettingsDeskDashboardRouteScreen() {
                       subtitle: source.presentations.get(thread.environmentId)?.entry.target.label,
                     }))}
                     selected={preferences.threads}
+                    unavailableOption={unavailableOption("session")}
                     disabled={!source.initialized}
                     onClear={() => save({ threads: [] })}
                     onSelect={(id) => save((current) => ({ threads: toggle(current.threads, id) }))}

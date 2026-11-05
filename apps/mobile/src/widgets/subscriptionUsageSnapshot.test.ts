@@ -159,6 +159,14 @@ describe("subscription widget snapshots", () => {
       windows: [{ remaining: 20 }],
       partial: true,
     });
+    local.providers = [
+      provider(),
+      provider({ ...failed, availability: "unavailable", usageLimits: limits }),
+    ];
+    expect.soft(buildSubscriptionUsageSnapshot(input, deepLink).providers[0]).toMatchObject({
+      windows: [{ remaining: 20 }],
+      partial: true,
+    });
   });
 });
 

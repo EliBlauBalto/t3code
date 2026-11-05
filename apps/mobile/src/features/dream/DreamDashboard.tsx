@@ -478,7 +478,6 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
             {preferences.showDate ? (
               <Text
                 numberOfLines={1}
-                adjustsFontSizeToFit
                 style={{
                   color: colors.secondary,
                   fontSize: Math.max(12, 15 * scale),
@@ -520,11 +519,10 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
               <View style={[styles.dot, { backgroundColor: colors.accent }]} />
             </View>
             <Text
-              numberOfLines={2}
-              adjustsFontSizeToFit
+              numberOfLines={3}
               style={{
                 color: colors.foreground,
-                fontSize: 28 * scale,
+                fontSize: Math.max(18, 28 * scale),
                 fontWeight: "300",
                 textAlign: "center",
               }}

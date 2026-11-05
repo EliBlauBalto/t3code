@@ -20,6 +20,10 @@ export function DreamSelectionSheet(props: {
   readonly disabled: boolean;
   readonly onSelect: (id: string) => void;
   readonly onClear?: () => void;
+  readonly unavailableOption?: (id: string) => {
+    readonly title: string;
+    readonly subtitle?: string;
+  };
   readonly children: (open: () => void) => ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -30,7 +34,13 @@ export function DreamSelectionSheet(props: {
     ...props.options,
     ...props.selected
       .filter((id) => !props.options.some((option) => option.id === id))
-      .map((id) => ({ id, title: "Unavailable selection", subtitle: "Remove this saved choice" })),
+      .map((id) => ({
+        id,
+        ...(props.unavailableOption?.(id) ?? {
+          title: `Saved choice ${id}`,
+          subtitle: "Currently unavailable",
+        }),
+      })),
   ];
   const query = search.trim().toLocaleLowerCase();
   const matches = options.filter((option) =>
@@ -76,13 +86,15 @@ export function DreamSelectionSheet(props: {
                 </View>
               ) : undefined
             }
-            renderItem={({ item }) => (
+            renderItem={({ item, index }) => (
               <SelectionRow
                 title={item.title}
                 subtitle={item.subtitle}
                 role={props.multiple ? "checkbox" : "radio"}
                 selected={props.selected.includes(item.id)}
                 disabled={props.disabled}
+                isFirst={index === 0}
+                isLast={index === matches.length - 1}
                 onPress={() => {
                   props.onSelect(item.id);
                   if (!props.multiple) setOpen(false);

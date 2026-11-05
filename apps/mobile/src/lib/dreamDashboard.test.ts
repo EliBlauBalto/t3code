@@ -160,9 +160,10 @@ it("uses existing status and visit semantics, assigns one status per entry, and 
     running,
     { ...running, hasPendingApprovals: true },
     { ...running, hasPendingUserInput: true },
+    { ...running, pendingGuestMessageCount: 1 },
     finished,
   ]);
-  expect(counts).toMatchObject({ working: 1, input: 1, questions: 1, finished: 1 });
+  expect(counts).toMatchObject({ working: 1, input: 2, questions: 1, finished: 1 });
   expect(
     summarizeDreamThreads([{ ...finished, lastVisitedAt: "2026-01-03T00:00:00.000Z" }]).finished,
   ).toBe(0);

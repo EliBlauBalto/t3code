@@ -17,7 +17,26 @@ it("keeps the last valid reading during a refresh but clears it after access, co
     untilDay: UsageDay.make("2026-11-04"),
     timeZone: "UTC",
     readAt: "2026-11-04T20:00:00Z",
-    buckets: [],
+    buckets: [
+      {
+        day: UsageDay.make("2026-11-04"),
+        provider: "codex",
+        model: "fixture-model",
+        totals: {
+          uncachedInputTokens: 1000,
+          cachedInputTokens: 0,
+          cacheCreationTokens: 0,
+          outputTokens: 200,
+          reasoningTokens: 0,
+        },
+        costUsd: 3,
+        cacheSavingsUsd: 0,
+        costSource: "providerReported",
+        records: 1,
+        unpricedRecords: 0,
+        sessions: 1,
+      },
+    ],
     sources: [
       {
         fingerprint: {
@@ -78,10 +97,69 @@ it("keeps the last valid reading during a refresh but clears it after access, co
     .soft(resolveDreamUsage(null, ids, withSources([{ ...source, status: "partial" }])))
     .toMatchObject({ tokens: 1200, partial: true });
   expect(resolveDreamUsage(null, ids, withSources([missing]))).toBeNull();
-  expect(resolveDreamUsage(null, ids, { ...current, merged: empty })).toMatchObject({
+  expect(
+    resolveDreamUsage(null, ids, {
+      ...withSources([source]),
+      merged: empty,
+      selectedEnvironments: current.selectedEnvironments.map((entry) => ({
+        ...entry,
+        summary: { ...summary, buckets: [] },
+      })),
+    }),
+  ).toMatchObject({
     tokens: 0,
     costUsd: 0,
   });
+  const bothIds = new Set([...ids, EnvironmentId.make("b")]);
+  const second = {
+    ...current.selectedEnvironments[0]!,
+    environmentId: EnvironmentId.make("b"),
+    label: "B",
+    summary: {
+      ...summary,
+      sources: [{ ...source, fingerprint: { ...source.fingerprint, hostId: "second" } }],
+    },
+  };
+  const both = { ...current, selectedEnvironments: [...current.selectedEnvironments, second] };
+  const full = resolveDreamUsage(null, bothIds, {
+    ...both,
+    merged: { ...empty, totalTokens: 2400, costUsd: 6 },
+  });
+  expect(full).toMatchObject({ tokens: 2400, costUsd: 6, partial: false });
+  for (const change of [
+    { isConnected: false },
+    { canReadDiagnostics: false },
+    { error: "Denied" },
+    { summary: null, isPending: true },
+    { summary: { ...second.summary, sources: [missing] } },
+    { summary: { ...second.summary, contractVersion: USAGE_CONTRACT_VERSION + 10000 } },
+    { summary: { ...second.summary, sources: [{ ...source, refreshing: true as const }] } },
+  ]) {
+    const reduced = {
+      ...both,
+      selectedEnvironments: [current.selectedEnvironments[0]!, { ...second, ...change }],
+    };
+    expect.soft(resolveDreamUsage(full, bothIds, reduced)).toMatchObject({
+      tokens: 1200,
+      costUsd: 3,
+      partial: true,
+    });
+  }
+  expect
+    .soft(
+      resolveDreamUsage(full, bothIds, {
+        ...both,
+        selectedEnvironments: [{ ...second, isConnected: false }, ...pendingEntries()],
+      }),
+    )
+    .toBeNull();
+  function pendingEntries() {
+    return current.selectedEnvironments.map((entry) => ({
+      ...entry,
+      summary: null,
+      isPending: true,
+    }));
+  }
   const refreshing = [{ ...source, refreshing: true as const }];
   expect(resolveDreamUsage(reading, ids, withSources(refreshing, true))).toMatchObject({
     tokens: 1200,

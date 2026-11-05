@@ -1,4 +1,5 @@
-import type { EnvironmentId } from "@t3tools/contracts";
+import { USAGE_CONTRACT_VERSION, type EnvironmentId } from "@t3tools/contracts";
+import { isCompatibleUsageContractVersion, mergeUsage } from "@t3tools/shared/usageMerge";
 import type { UsageView } from "../state/usage";
 
 export interface DreamUsageReading {
@@ -15,55 +16,65 @@ export function resolveDreamUsage(
   environmentIds: ReadonlySet<EnvironmentId>,
   usage: Pick<UsageView, "merged" | "selectedEnvironments">,
 ): DreamUsageReading | null {
-  const scope = JSON.stringify([...environmentIds].sort());
-  const available =
-    environmentIds.size > 0 &&
-    usage.selectedEnvironments.length === environmentIds.size &&
-    usage.merged.contractMismatches.length === 0 &&
-    usage.selectedEnvironments.every(
-      (entry) =>
-        environmentIds.has(entry.environmentId) &&
-        entry.isConnected &&
-        entry.canReadDiagnostics &&
-        entry.error === null &&
-        (entry.summary === null ||
+  const available = usage.selectedEnvironments.filter(
+    (entry) =>
+      environmentIds.has(entry.environmentId) &&
+      entry.isConnected &&
+      entry.canReadDiagnostics &&
+      entry.error === null &&
+      (entry.summary === null ||
+        (isCompatibleUsageContractVersion(entry.summary.contractVersion, USAGE_CONTRACT_VERSION) &&
+          entry.summary.sources.some(
+            (source) => source.status === "ok" || source.status === "partial",
+          ) &&
           entry.summary.sources.every(
             (source) =>
               (source.status === "ok" ||
                 source.status === "partial" ||
                 source.status === "missing") &&
               (source.refreshing !== true || entry.isPending),
-          )),
-    );
-  const ready =
-    available &&
-    usage.selectedEnvironments.every(
-      (entry) =>
-        entry.summary !== null &&
-        !entry.isPending &&
-        entry.summary.sources.some(
-          (source) => source.status === "ok" || source.status === "partial",
-        ),
-    );
-  if (!ready) {
-    const pending = usage.selectedEnvironments.some(
-      (entry) => entry.summary === null || entry.isPending,
-    );
-    return available && pending && previous?.scope === scope
-      ? previous.refreshing
-        ? previous
-        : { ...previous, refreshing: true }
-      : null;
+          ))),
+  );
+  const scopeFor = (ids: readonly EnvironmentId[]) =>
+    JSON.stringify([[...environmentIds].sort(), [...ids].sort()]);
+  const pending = available.some((entry) => entry.summary === null || entry.isPending);
+  if (
+    pending &&
+    available.every((entry) => entry.summary === null || entry.isPending) &&
+    previous?.scope === scopeFor(available.map((entry) => entry.environmentId))
+  ) {
+    return previous.refreshing ? previous : { ...previous, refreshing: true };
   }
+  const answered = available.filter((entry) => entry.summary !== null && !entry.isPending);
+  if (answered.length === 0) return null;
+  const merged =
+    answered.length === usage.selectedEnvironments.length
+      ? usage.merged
+      : mergeUsage(
+          answered.flatMap((entry) =>
+            entry.summary === null
+              ? []
+              : [
+                  {
+                    environmentId: entry.environmentId,
+                    label: entry.label,
+                    summary: entry.summary,
+                  },
+                ],
+          ),
+          USAGE_CONTRACT_VERSION,
+        );
   const next = {
-    scope,
-    tokens: usage.merged.totalTokens,
-    costUsd: usage.merged.costQuality.unpricedShare === 0 ? usage.merged.costUsd : null,
-    estimated: usage.merged.costQuality.modelPricedShare > 0,
-    partial: usage.selectedEnvironments.some((entry) =>
-      entry.summary?.sources.some((source) => source.status === "partial"),
-    ),
-    refreshing: false,
+    scope: scopeFor(answered.map((entry) => entry.environmentId)),
+    tokens: merged.totalTokens,
+    costUsd: merged.costQuality.unpricedShare === 0 ? merged.costUsd : null,
+    estimated: merged.costQuality.modelPricedShare > 0,
+    partial:
+      answered.length < environmentIds.size ||
+      answered.some((entry) =>
+        entry.summary?.sources.some((source) => source.status === "partial"),
+      ),
+    refreshing: pending,
   };
   return JSON.stringify(previous) === JSON.stringify(next) ? previous : next;
 }

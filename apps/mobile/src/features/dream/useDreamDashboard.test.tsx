@@ -1,7 +1,9 @@
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { RegistryContext } from "@effect/atom-react";
-import { AtomRegistry } from "effect/reactivity";
+import { Atom, AtomRegistry } from "effect/reactivity";
+import { EnvironmentId, ProjectId, ThreadId } from "@t3tools/contracts";
+import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import * as Effect from "effect/Effect";
 import { expect, it } from "@effect/vitest";
 import { vi } from "vite-plus/test";
@@ -40,11 +42,16 @@ vi.mock("../../state/shell", async () => {
     },
   };
 });
-vi.mock("../../state/threads", async () => ({
-  environmentThreadShells: {
-    navigationThreadShellsAtom: (await import("effect/reactivity")).Atom.make([]),
-  },
-}));
+vi.mock("../../state/threads", async () => {
+  const { Atom } = await import("effect/reactivity");
+  const quiet = Atom.make<EnvironmentThreadShell | null>(null);
+  return {
+    environmentThreadShells: {
+      navigationThreadShellsAtom: Atom.make<readonly EnvironmentThreadShell[]>([]),
+      quietThreadShellAtom: () => quiet,
+    },
+  };
+});
 vi.mock("../../state/preferences", async (importOriginal) => {
   const { createMobilePreferencesState } =
     await importOriginal<typeof import("../../state/preferences")>();
@@ -75,6 +82,8 @@ vi.mock("../../state/preferences", async (importOriginal) => {
 import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
 import { normalizeDreamPreferences } from "../../lib/dreamDashboard";
 import { useDreamSources } from "./useDreamDashboard";
+import { environmentThreadShells } from "../../state/threads";
+import { makeThreadShellFixture } from "../../test-fixtures";
 
 it.effect("preserves separate Dream setting changes submitted before the next render", () =>
   Effect.gen(function* () {
@@ -132,4 +141,55 @@ it.effect("preserves separate Dream setting changes submitted before the next re
       registry.dispose();
     }
   }),
+);
+
+it.effect(
+  "ignores streaming-only shell changes while preserving quiet updates and navigation membership",
+  () =>
+    Effect.gen(function* () {
+      const registry = AtomRegistry.make();
+      const thread = makeThreadShellFixture({
+        environmentId: EnvironmentId.make("env"),
+        id: ThreadId.make("thread"),
+        projectId: ProjectId.make("project"),
+        title: "Fixture session",
+      });
+      const quiet = environmentThreadShells.quietThreadShellAtom({
+        environmentId: thread.environmentId,
+        threadId: thread.id,
+      });
+      const navigation = environmentThreadShells.navigationThreadShellsAtom;
+      if (!Atom.isWritable(navigation) || !Atom.isWritable(quiet))
+        throw new Error("Fixture atoms must be writable");
+      registry.set(navigation, [thread]);
+      registry.set(quiet, thread);
+      const unmount = registry.mount(mobilePreferencesAtom);
+      const captured: Array<ReturnType<typeof useDreamSources>> = [];
+      function Capture() {
+        captured.push(useDreamSources());
+        return null;
+      }
+      const read = () => {
+        renderToString(
+          createElement(RegistryContext.Provider, { value: registry }, createElement(Capture)),
+        );
+        return captured.at(-1)!;
+      };
+      try {
+        yield* AtomRegistry.getResult(registry, mobilePreferencesAtom, { suspendOnWaiting: true });
+        const before = read();
+        registry.set(navigation, [{ ...thread, updatedAt: "2026-11-04T21:00:01Z" }]);
+        const streamed = read();
+        expect.soft(streamed.threads).toBe(before.threads);
+        expect.soft(streamed.projects).toBe(before.projects);
+        const approval = { ...thread, hasPendingApprovals: true };
+        registry.set(quiet, approval);
+        expect(read().threads).toEqual([approval]);
+        registry.set(navigation, []);
+        expect(read().threads).toEqual([]);
+      } finally {
+        unmount();
+        registry.dispose();
+      }
+    }),
 );

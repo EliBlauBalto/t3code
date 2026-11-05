@@ -15,10 +15,18 @@ import {
   type DreamPreferences,
 } from "../../lib/dreamDashboard";
 
-const sourcesAtom = Atom.make((get) => {
+const rawSourcesAtom = Atom.make((get) => {
   const catalog = get(environmentCatalog.catalogValueAtom);
   const presentations = get(environmentPresentations.presentationsWithProvidersAtom);
-  const threads = get(environmentThreadShells.navigationThreadShellsAtom);
+  const threads = get(environmentThreadShells.navigationThreadShellsAtom).flatMap((thread) => {
+    const quiet = get(
+      environmentThreadShells.quietThreadShellAtom({
+        environmentId: thread.environmentId,
+        threadId: thread.id,
+      }),
+    );
+    return quiet === null ? [] : [quiet];
+  });
   const projects: Array<{ key: string; title: string; environmentId: EnvironmentId }> = [];
   const live = new Set<EnvironmentId>();
   for (const [id, presentation] of presentations) {
@@ -35,6 +43,25 @@ const sourcesAtom = Atom.make((get) => {
   }
   return { ready: catalog.isReady, presentations, threads, projects, live };
 });
+const sourcesAtom = Atom.withEquality(
+  rawSourcesAtom,
+  (a, b) =>
+    a.ready === b.ready &&
+    a.presentations === b.presentations &&
+    a.threads.length === b.threads.length &&
+    a.threads.every((thread, index) => thread === b.threads[index]) &&
+    a.live.size === b.live.size &&
+    [...a.live].every((id) => b.live.has(id)) &&
+    a.projects.length === b.projects.length &&
+    a.projects.every((project, index) => {
+      const other = b.projects[index]!;
+      return (
+        project.key === other.key &&
+        project.title === other.title &&
+        project.environmentId === other.environmentId
+      );
+    }),
+);
 
 export function useDreamSources() {
   const sources = useAtomValue(sourcesAtom);

@@ -157,7 +157,9 @@ export function buildSubscriptionUsageSnapshot(
         (report) =>
           (report.driver === "codex" || report.driver === "claudeAgent") &&
           report.usageLimits?.unavailable?.reason !== "unsupported" &&
-          (!report.usageLimits || limitsNotice(report.usageLimits) !== null),
+          (("availability" in report && report.availability === "unavailable") ||
+            !report.usageLimits ||
+            limitsNotice(report.usageLimits) !== null),
       )
       .map((report) => (report.driver === "codex" ? "Codex" : "Claude")),
   );
