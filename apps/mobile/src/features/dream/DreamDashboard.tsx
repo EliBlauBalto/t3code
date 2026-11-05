@@ -16,6 +16,7 @@ import {
   summarizeDreamThreads,
   type DreamKpi,
   type DreamPalette,
+  type DreamPreferences,
 } from "../../lib/dreamDashboard";
 import { themeColorWithAlpha } from "../../lib/mobileTheme";
 import { resolveDreamUsage, type DreamUsageReading } from "../../lib/dreamUsage";
@@ -53,6 +54,7 @@ const STATUS_COLORS = {
   down: "#f87171",
   idle: "#8e8e93",
 } as const;
+const STATUS_KPIS = ["working", "input", "questions", "finished"] as const;
 
 export default function DreamDashboardRoot() {
   return (
@@ -142,6 +144,8 @@ function DreamTile({
   const needsYou = (kpi: "input" | "questions") => !unavailable && counts[kpi] > 0;
   if (kpi === "") return <View style={styles.card} />;
   const tileScale = dreamTileScale(scale, size, large, fontScale);
+  const compactStatus = kpi === "status" && !large;
+  const danger = value.alert || (kpi === "status" && counts.failed > 0);
   const attention =
     kpi === "status"
       ? needsYou("input") || needsYou("questions") || counts.failed > 0
@@ -155,6 +159,12 @@ function DreamTile({
       : colors.foreground;
   return (
     <View
+      accessible={compactStatus}
+      accessibilityLabel={
+        compactStatus
+          ? `Session status. ${STATUS_KPIS.map((key) => `${DREAM_KPIS[key]} ${number(counts[key])}`).join(". ")}${counts.failed > 0 ? `. ${number(counts.failed)} failed` : ""}`
+          : undefined
+      }
       onLayout={({ nativeEvent: { layout } }) =>
         setSize((current) =>
           current?.width === layout.width && current?.height === layout.height
@@ -171,42 +181,56 @@ function DreamTile({
               ? themeColorWithAlpha(colors.accent, attention ? 0.09 : 0.045)
               : colors.card,
           borderRadius: large ? 24 : 18,
-          padding: Math.round((large ? 26 : 18) * tileScale),
+          padding: Math.round((large ? 26 : 16) * tileScale),
+          gap: focused ? 16 : large ? 6 : Math.max(2, Math.round(6 * tileScale)),
+          justifyContent: focused ? "center" : "space-between",
           borderWidth: focused ? 0 : 1,
           borderColor: attention
-            ? themeColorWithAlpha(colors.accent, 0.55)
+            ? themeColorWithAlpha(danger ? colors.alert : colors.accent, 0.55)
             : themeColorWithAlpha(colors.foreground, 0.07),
         },
       ]}
     >
-      <View style={styles.cardLabel}>
-        <Text
-          numberOfLines={1}
+      {!compactStatus ? (
+        <View style={[styles.cardLabel, focused && styles.focusLabel]}>
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.label,
+              { color: colors.secondary, fontSize: Math.max(11, (large ? 13 : 11) * tileScale) },
+            ]}
+          >
+            {DREAM_KPIS[kpi]}
+          </Text>
+          {attention ? (
+            <View
+              style={[
+                styles.dot,
+                {
+                  backgroundColor: danger ? colors.alert : colors.accent,
+                },
+              ]}
+            />
+          ) : null}
+        </View>
+      ) : null}
+      {kpi === "status" ? (
+        <View
           style={[
-            styles.label,
-            { color: colors.secondary, fontSize: Math.max(11, (large ? 13 : 11) * tileScale) },
+            styles.statusGrid,
+            compactStatus && styles.compactStatusGrid,
+            focused && styles.focusStatusGrid,
           ]}
         >
-          {DREAM_KPIS[kpi]}
-        </Text>
-        {attention ? (
-          <View
-            style={[
-              styles.dot,
-              {
-                backgroundColor:
-                  value.alert || (kpi === "status" && counts.failed > 0)
-                    ? colors.alert
-                    : colors.accent,
-              },
-            ]}
-          />
-        ) : null}
-      </View>
-      {kpi === "status" ? (
-        <View style={styles.statusGrid}>
-          {(["working", "input", "questions", "finished"] as const).map((key) => (
-            <View key={key} style={styles.statusCell}>
+          {STATUS_KPIS.map((key) => (
+            <View
+              key={key}
+              style={[
+                styles.statusCell,
+                compactStatus && styles.compactStatusCell,
+                focused && styles.focusStatusCell,
+              ]}
+            >
               <Text
                 adjustsFontSizeToFit
                 numberOfLines={1}
@@ -219,7 +243,10 @@ function DreamTile({
                         : counts[key] === 0
                           ? colors.secondary
                           : colors.foreground,
-                    fontSize: (large ? 60 : 30) * tileScale,
+                    fontSize: compactStatus
+                      ? Math.max(11, 20 * tileScale)
+                      : (large ? 60 : 30) * tileScale,
+                    fontWeight: compactStatus ? "500" : "300",
                   },
                 ]}
               >
@@ -227,10 +254,13 @@ function DreamTile({
               </Text>
               <Text
                 numberOfLines={1}
-                style={{
-                  color: colors.secondary,
-                  fontSize: Math.max(11, (large ? 14 : 11) * tileScale),
-                }}
+                style={[
+                  {
+                    color: colors.secondary,
+                    fontSize: Math.max(11, (large ? 14 : 11) * tileScale),
+                  },
+                  compactStatus && styles.compactStatusText,
+                ]}
               >
                 {DREAM_KPIS[key]}
               </Text>
@@ -239,7 +269,12 @@ function DreamTile({
           {large && !unavailable && counts.waiting + counts.failed + counts.limited > 0 ? (
             <Text
               numberOfLines={1}
-              style={{ color: colors.secondary, fontSize: Math.max(11, 13 * tileScale) }}
+              style={{
+                color: colors.secondary,
+                fontSize: Math.max(11, 13 * tileScale),
+                width: "100%",
+                textAlign: focused ? "center" : "left",
+              }}
             >
               {number(counts.waiting)} waiting ·{" "}
               <Text style={counts.failed > 0 ? { color: colors.alert } : undefined}>
@@ -250,7 +285,13 @@ function DreamTile({
           ) : null}
         </View>
       ) : (
-        <View style={[styles.cardValue, focused && styles.focusValue]}>
+        <View
+          style={[
+            styles.cardValue,
+            !large && { gap: Math.max(2, Math.round(4 * tileScale)) },
+            focused && styles.focusValue,
+          ]}
+        >
           <Text
             adjustsFontSizeToFit
             numberOfLines={1}
@@ -295,6 +336,93 @@ function DreamTile({
           </Text>
         </View>
       )}
+    </View>
+  );
+}
+
+function DreamClockFace({
+  preferences,
+  now,
+  size,
+  colors,
+  scale,
+}: {
+  readonly preferences: DreamPreferences;
+  readonly now: Date;
+  readonly size: { readonly width: number; readonly height: number };
+  readonly colors: ReturnType<typeof resolvePalette>;
+  readonly scale: number;
+}) {
+  const clockOnly = preferences.layout === "clock";
+  const hour12 =
+    preferences.clock === "system"
+      ? !(dreamControls?.is24HourFormat?.() ?? true)
+      : preferences.clock === "12";
+  const timeParts = new Intl.DateTimeFormat(undefined, {
+    hour: hour12 ? "numeric" : "2-digit",
+    minute: "2-digit",
+    hour12,
+  }).formatToParts(now);
+  const timeText = timeParts
+    .filter((part) => part.type !== "dayPeriod")
+    .map((part) => part.value)
+    .join("")
+    .trim();
+  const dayPeriod = timeParts.find((part) => part.type === "dayPeriod")?.value;
+  return (
+    <View style={clockOnly && styles.clockFace}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "baseline",
+          justifyContent: clockOnly ? "center" : "flex-start",
+        }}
+      >
+        <Text
+          adjustsFontSizeToFit
+          maxFontSizeMultiplier={1.3}
+          numberOfLines={1}
+          style={{
+            color: colors.foreground,
+            fontSize: clockOnly ? dreamClockFontSize(size.width, size.height) : 46 * scale,
+            fontWeight: "200",
+            fontVariant: ["tabular-nums"],
+            includeFontPadding: false,
+            textAlign: clockOnly ? "center" : "left",
+            flexShrink: 1,
+            letterSpacing: clockOnly ? -3 : -1,
+          }}
+        >
+          {timeText}
+        </Text>
+        {dayPeriod ? (
+          <Text
+            style={{
+              color: colors.secondary,
+              fontSize: Math.max(11, (clockOnly ? 20 : 13) * scale),
+              marginLeft: 8,
+            }}
+          >
+            {dayPeriod}
+          </Text>
+        ) : null}
+      </View>
+      {preferences.showDate ? (
+        <Text
+          numberOfLines={1}
+          style={{
+            color: colors.secondary,
+            fontSize: Math.max(12, 15 * scale),
+            textAlign: clockOnly ? "center" : "left",
+          }}
+        >
+          {now.toLocaleDateString(undefined, {
+            weekday: "long",
+            month: "long",
+            day: "numeric",
+          })}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -463,22 +591,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
     },
     live: { text: "Live", title: "", detail: "", color: STATUS_COLORS.live },
   }[connectionState];
-  const hour12 =
-    preferences.clock === "system"
-      ? !(dreamControls?.is24HourFormat?.() ?? true)
-      : preferences.clock === "12";
   const minute = now.getMinutes();
-  const timeParts = new Intl.DateTimeFormat(undefined, {
-    hour: hour12 ? "numeric" : "2-digit",
-    minute: "2-digit",
-    hour12,
-  }).formatToParts(now);
-  const timeText = timeParts
-    .filter((part) => part.type !== "dayPeriod")
-    .map((part) => part.value)
-    .join("")
-    .trim();
-  const dayPeriod = timeParts.find((part) => part.type === "dayPeriod")?.value;
   const shift = preferences.pixelShift
     ? [{ translateX: (minute % 2) * 2 }, { translateY: (Math.floor(minute / 2) % 2) * 2 }]
     : [];
@@ -489,60 +602,13 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
     >
       <View style={[styles.content, { gap: gap * 1.5, maxHeight: clockOnly ? undefined : 860 }]}>
         <View style={[styles.header, clockOnly && styles.clockHeader, { transform: shift }]}>
-          <View style={clockOnly && styles.clockFace}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "baseline",
-                justifyContent: clockOnly ? "center" : "flex-start",
-              }}
-            >
-              <Text
-                adjustsFontSizeToFit
-                maxFontSizeMultiplier={1.3}
-                numberOfLines={1}
-                style={{
-                  color: colors.foreground,
-                  fontSize: clockOnly ? dreamClockFontSize(size.width, size.height) : 46 * scale,
-                  fontWeight: "200",
-                  fontVariant: ["tabular-nums"],
-                  includeFontPadding: false,
-                  textAlign: clockOnly ? "center" : "left",
-                  flexShrink: 1,
-                  letterSpacing: clockOnly ? -3 : -1,
-                }}
-              >
-                {timeText}
-              </Text>
-              {dayPeriod ? (
-                <Text
-                  style={{
-                    color: colors.secondary,
-                    fontSize: Math.max(11, (clockOnly ? 20 : 13) * scale),
-                    marginLeft: 8,
-                  }}
-                >
-                  {dayPeriod}
-                </Text>
-              ) : null}
-            </View>
-            {preferences.showDate ? (
-              <Text
-                numberOfLines={1}
-                style={{
-                  color: colors.secondary,
-                  fontSize: Math.max(12, 15 * scale),
-                  textAlign: clockOnly ? "center" : "left",
-                }}
-              >
-                {now.toLocaleDateString(undefined, {
-                  weekday: "long",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </Text>
-            ) : null}
-          </View>
+          <DreamClockFace
+            preferences={preferences}
+            now={now}
+            size={size}
+            colors={colors}
+            scale={scale}
+          />
           {preferences.showStatus ? (
             <View style={styles.pill}>
               <View style={[styles.dot, { backgroundColor: connection.color }]} />
@@ -666,7 +732,10 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginVertical: "auto",
   },
-  focusValue: { flex: 1, justifyContent: "center" },
+  focusValue: { justifyContent: "center" },
+  focusLabel: { justifyContent: "center" },
+  focusStatusGrid: { flex: 0 },
+  focusStatusCell: { alignItems: "center" },
   clockHeader: {
     flex: 1,
     flexDirection: "column",
@@ -702,11 +771,30 @@ const styles = StyleSheet.create({
   cardLabel: { flexDirection: "row", alignItems: "center", gap: 8 },
   label: { letterSpacing: 0.8, textTransform: "uppercase", flexShrink: 1 },
   cardValue: { gap: 8 },
-  number: { fontWeight: "300", fontVariant: ["tabular-nums"], flexShrink: 1 },
+  number: {
+    fontWeight: "300",
+    fontVariant: ["tabular-nums"],
+    flexShrink: 1,
+    includeFontPadding: false,
+  },
   track: { height: 6, borderRadius: 3, overflow: "hidden" },
   fill: { height: 6, borderRadius: 3 },
   smallGrid: { gap: 14 },
   smallRow: { flex: 1, flexDirection: "row", gap: 14 },
   statusGrid: { flexDirection: "row", flexWrap: "wrap", flex: 1, alignContent: "center" },
   statusCell: { width: "50%", paddingVertical: 4 },
+  compactStatusGrid: {
+    flexDirection: "column",
+    flexWrap: "nowrap",
+    justifyContent: "space-evenly",
+  },
+  compactStatusCell: {
+    width: "100%",
+    flexDirection: "row-reverse",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 0,
+    gap: 4,
+  },
+  compactStatusText: { includeFontPadding: false, flexShrink: 1 },
 });

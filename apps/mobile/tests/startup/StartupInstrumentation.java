@@ -708,8 +708,15 @@ public final class StartupInstrumentation extends Instrumentation {
       ComponentName systemSettings = new Intent(android.provider.Settings.ACTION_DREAM_SETTINGS)
           .resolveActivity(getContext().getPackageManager());
       if (systemSettings == null) throw new AssertionError("Test system has no screen saver settings");
+      result.putString("capabilityComponent", systemSettings.flattenToString());
       try {
-        shell(automation, "pm disable-user --user 0 '" + systemSettings.flattenToString() + "'");
+        result.putString("capabilityDisableResult",
+            shell(automation, "pm disable-user --user 0 " + systemSettings.flattenToString()));
+        ComponentName remainingSettings = new Intent(android.provider.Settings.ACTION_DREAM_SETTINGS)
+            .resolveActivity(getContext().getPackageManager());
+        result.putString("capabilityAfterDisable", remainingSettings == null
+            ? "NONE" : remainingSettings.flattenToString());
+        if (remainingSettings != null) throw new AssertionError("Screen saver settings still resolve after fixture disable");
         automation.injectInputEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_HOME), true);
         automation.injectInputEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_HOME), true);
         shell(automation, "am force-stop com.t3tools.t3code.dream");
@@ -724,7 +731,7 @@ public final class StartupInstrumentation extends Instrumentation {
         capture(automation, "unsupported-settings");
         result.putString("capabilityGate", "PASS");
       } finally {
-        shell(automation, "pm enable --user 0 '" + systemSettings.flattenToString() + "'");
+        shell(automation, "pm enable --user 0 " + systemSettings.flattenToString());
       }
       passed = true;
     } catch (Throwable error) {
