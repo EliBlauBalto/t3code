@@ -252,6 +252,14 @@ public final class StartupInstrumentation extends Instrumentation {
   private void scrollTo(UiAutomation automation, String label, int direction) throws Exception {
     for (int step = 0; step < 10; step++) {
       AccessibilityNodeInfo root = automation.getRootInActiveWindow();
+      if (root == null || (scrollable(root) == null && textBounds(root, label) == null)) {
+        automation.executeAndWaitForEvent(() -> {}, event -> {
+          AccessibilityNodeInfo ready = automation.getRootInActiveWindow();
+          return ready != null && (scrollable(ready) != null || textBounds(ready, label) != null);
+        }, 30000);
+        root = automation.getRootInActiveWindow();
+      }
+      if (root == null) throw new AssertionError("Window changed before scrolling to " + label);
       Rect bounds = textBounds(root, label);
       AccessibilityNodeInfo list = scrollable(root);
       Rect screen = new Rect();
@@ -709,6 +717,9 @@ public final class StartupInstrumentation extends Instrumentation {
       passed = true;
     } catch (Throwable error) {
       result.putString("failure", error.toString());
+      StringBuilder frames = new StringBuilder();
+      for (StackTraceElement frame : error.getStackTrace()) frames.append(frame).append('\n');
+      result.putString("failureStack", frames.toString());
     } finally {
       String text = screenText(automation.getRootInActiveWindow());
       result.putString("screen", text);
