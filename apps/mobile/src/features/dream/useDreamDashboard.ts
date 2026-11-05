@@ -1,7 +1,7 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId } from "@t3tools/contracts";
 import { Atom, AsyncResult } from "effect/reactivity";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { makeWindow } from "@t3tools/shared/usageFormat";
 import { environmentCatalog } from "../../connection/catalog";
 import { environmentPresentations } from "../../state/presentation";
@@ -22,7 +22,6 @@ const sourcesAtom = Atom.make((get) => {
   const projects: Array<{ key: string; title: string; environmentId: EnvironmentId }> = [];
   const live = new Set<EnvironmentId>();
   for (const [id, presentation] of presentations) {
-    if (!presentation.entry.enabled) continue;
     const shell = get(environmentShell.stateValueAtom(id));
     if (presentation.connection.phase === "connected" && shell.status === "live") live.add(id);
     if (shell.snapshot._tag === "Some")
@@ -45,21 +44,30 @@ export function useDreamSources() {
   );
   const save = useAtomSet(updateMobilePreferencesAtom);
   const selected = selectDreamThreads(sources.threads, preferences);
-  const environmentIds = new Set<EnvironmentId>([
-    ...selected.map((thread) => thread.environmentId),
-    ...sources.projects
-      .filter((project) => preferences.all || preferences.projects.includes(project.key))
-      .map((project) => project.environmentId),
-    ...[...sources.presentations]
-      .filter(([id, value]) =>
-        preferences.all
-          ? value.entry.enabled
-          : [...preferences.projects, ...preferences.threads].some((key) =>
-              key.startsWith(`${id}:`),
-            ),
-      )
-      .map(([id]) => id),
-  ]);
+  const environmentKey = JSON.stringify(
+    [
+      ...new Set<EnvironmentId>([
+        ...selected.map((thread) => thread.environmentId),
+        ...sources.projects
+          .filter((project) => preferences.all || preferences.projects.includes(project.key))
+          .map((project) => project.environmentId),
+        ...[...sources.presentations]
+          .filter(([id]) =>
+            preferences.all
+              ? true
+              : !sources.live.has(id) &&
+                [...preferences.projects, ...preferences.threads].some((key) =>
+                  key.startsWith(`${id}:`),
+                ),
+          )
+          .map(([id]) => id),
+      ]),
+    ].sort(),
+  );
+  const environmentIds = useMemo(
+    () => new Set(JSON.parse(environmentKey) as EnvironmentId[]),
+    [environmentKey],
+  );
   const initialized = sources.ready && AsyncResult.isSuccess(stored);
   const ready = initialized && !stored.waiting;
   return {

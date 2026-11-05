@@ -25,6 +25,10 @@ it("qualifies available quota when another supported provider is missing or expi
     remaining: 80,
     partial: true,
   });
+  expect.soft(resolveDreamQuota([codex], 100, true)).toMatchObject({
+    remaining: 80,
+    partial: true,
+  });
   for (const missing of [
     { ...claude, expiresAt: 0, windows: [] },
     { ...claude, expiresAt: 90 },

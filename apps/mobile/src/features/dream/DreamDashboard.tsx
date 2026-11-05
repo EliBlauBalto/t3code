@@ -138,7 +138,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
   );
   const connectionState = resolveDreamConnection({
     ready: source.ready,
-    configured: [...source.presentations.values()].filter((entry) => entry.entry.enabled).length,
+    configured: source.presentations.size,
     selected: source.environmentIds.size,
     live: live.length,
   });
@@ -151,45 +151,52 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
         Infinity,
       )
     : null;
-  const tightest = resolveDreamQuota(quotas?.providers ?? [], now.getTime());
+  const tightest = resolveDreamQuota(quotas?.providers ?? [], now.getTime(), partial);
   const number = (value: number) => (unavailable ? "–" : `${partial ? "~" : ""}${value}`);
   const quotaRemaining =
-    tightest && !unavailable && !partial ? Math.max(0, Math.min(100, tightest.remaining)) : null;
+    tightest && !unavailable ? Math.max(0, Math.min(100, tightest.remaining)) : null;
   const metric = (kpi: DreamKpi) => {
     switch (kpi) {
       case "tokens":
         return {
-          value: reading ? formatTokens(reading.tokens) : "–",
+          value: reading ? `${reading.partial ? "~" : ""}${formatTokens(reading.tokens)}` : "–",
           detail: !reading
             ? "Usage unavailable"
             : reading.refreshing
               ? "Updating · selected machines"
-              : "Selected machines",
+              : reading.partial
+                ? "Partial · selected machines"
+                : "Selected machines",
           alert: false,
         };
       case "cost":
         return {
           value:
             reading?.costUsd !== null && reading?.costUsd !== undefined
-              ? formatUsd(reading.costUsd)
+              ? `${reading.partial ? "~" : ""}${formatUsd(reading.costUsd)}`
               : "–",
           detail:
             !reading || reading.costUsd === null
               ? "Cost unavailable"
               : reading.refreshing
                 ? "Updating · selected machines"
-                : reading.estimated
-                  ? "Estimated · selected machines"
-                  : "Reported · selected machines",
+                : reading.partial
+                  ? "Partial · selected machines"
+                  : reading.estimated
+                    ? "Estimated · selected machines"
+                    : "Reported · selected machines",
           alert: false,
         };
       case "limits":
         return {
           value:
             quotaRemaining === null ? "–" : `${tightest?.partial ? "~" : ""}${quotaRemaining}%`,
-          detail: tightest
-            ? `${tightest.partial ? "Partial · " : ""}${tightest.name} · ${tightest.label}`
-            : "No quota available",
+          detail:
+            tightest && quotaRemaining !== null
+              ? `${tightest.partial ? "Partial · " : ""}${tightest.name} · ${tightest.label}`
+              : unavailable
+                ? "Waiting for live quota"
+                : "No quota available",
           alert: quotaRemaining !== null && quotaRemaining <= 10,
         };
       case "connections":
@@ -258,7 +265,6 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
         <View style={styles.cardLabel}>
           <Text
             numberOfLines={1}
-            adjustsFontSizeToFit
             style={[
               styles.label,
               { color: colors.secondary, fontSize: Math.max(11, (large ? 13 : 11) * tileScale) },
@@ -304,7 +310,6 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
                 </Text>
                 <Text
                   numberOfLines={1}
-                  adjustsFontSizeToFit
                   style={{
                     color: colors.secondary,
                     fontSize: Math.max(11, (large ? 14 : 11) * tileScale),
@@ -360,7 +365,6 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
             ) : null}
             <Text
               numberOfLines={1}
-              adjustsFontSizeToFit
               style={{
                 color: colors.secondary,
                 fontSize: Math.max(10, (large ? 13 : 11) * tileScale),
@@ -463,7 +467,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
                 <Text
                   style={{
                     color: colors.secondary,
-                    fontSize: (clockOnly ? 20 : 13) * scale,
+                    fontSize: Math.max(11, (clockOnly ? 20 : 13) * scale),
                     marginLeft: 8,
                   }}
                 >
@@ -530,7 +534,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
             <Text
               style={{
                 color: colors.secondary,
-                fontSize: 15 * scale,
+                fontSize: Math.max(12, 15 * scale),
                 lineHeight: 23 * scale,
                 textAlign: "center",
                 maxWidth: 380,

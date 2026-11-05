@@ -55,6 +55,39 @@ it("keeps the last valid reading during a refresh but clears it after access, co
   const reading = resolveDreamUsage(null, ids, current);
   expect(reading).toMatchObject({ tokens: 1200, costUsd: 3, refreshing: false });
   expect(resolveDreamUsage(reading, ids, current)).toBe(reading);
+  const withSources = (sources: UsageSummary["sources"], isPending = false) => ({
+    ...current,
+    selectedEnvironments: current.selectedEnvironments.map((entry) => ({
+      ...entry,
+      isPending,
+      summary: { ...summary, sources },
+    })),
+  });
+  const source = summary.sources[0]!;
+  const missing = {
+    ...source,
+    fingerprint: { ...source.fingerprint, provider: "claude" as const },
+    status: "missing" as const,
+  };
+  expect.soft(resolveDreamUsage(null, ids, withSources([source, missing]))).toMatchObject({
+    tokens: 1200,
+    costUsd: 3,
+    partial: false,
+  });
+  expect
+    .soft(resolveDreamUsage(null, ids, withSources([{ ...source, status: "partial" }])))
+    .toMatchObject({ tokens: 1200, partial: true });
+  expect(resolveDreamUsage(null, ids, withSources([missing]))).toBeNull();
+  expect(resolveDreamUsage(null, ids, { ...current, merged: empty })).toMatchObject({
+    tokens: 0,
+    costUsd: 0,
+  });
+  const refreshing = [{ ...source, refreshing: true as const }];
+  expect(resolveDreamUsage(reading, ids, withSources(refreshing, true))).toMatchObject({
+    tokens: 1200,
+    refreshing: true,
+  });
+  expect.soft(resolveDreamUsage(reading, ids, withSources(refreshing))).toBeNull();
   const pending = {
     ...current,
     selectedEnvironments: current.selectedEnvironments.map((entry) => ({

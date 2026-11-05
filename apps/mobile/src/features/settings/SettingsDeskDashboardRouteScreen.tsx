@@ -1,12 +1,10 @@
+import { useMemo } from "react";
 import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 
 import { AppText as Text } from "../../components/ui/AppText";
 import { ListActionRow } from "../../components/ui/ListActionRow";
-import { ListRowLayout } from "../../components/ui/ListRowLayout";
-import { Menu } from "../../components/ui/Menu";
-import { RowPressable } from "../../components/ui/RowPressable";
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import { cn } from "../../lib/cn";
@@ -25,6 +23,7 @@ import {
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import { useDreamSources } from "../dream/useDreamDashboard";
 import { DreamPreview } from "../dream/DreamPreview";
+import { DreamSelectionSheet } from "../dream/DreamSelectionSheet";
 import { dreamControls, supportsDream } from "../../lib/dreamSupport";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { SettingsSection } from "./components/SettingsSection";
@@ -90,38 +89,47 @@ function SlotTile(props: {
 }) {
   const central = props.index === 0;
   return (
-    <Menu
-      style={central ? undefined : { flex: 1 }}
-      actions={KPI_ACTIONS.map((action) => ({
-        ...action,
-        state: action.id === (props.kpi || "empty") ? ("on" as const) : ("off" as const),
-      }))}
-      onPressAction={({ nativeEvent }) => {
-        const next = nativeEvent.event === "empty" ? "" : nativeEvent.event;
-        if (Object.hasOwn(DREAM_KPIS, next)) props.onChange(next as DreamKpi);
-      }}
-    >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${central ? "Large tile" : `Small tile ${props.index}`}: ${DREAM_KPIS[props.kpi]}`}
-        accessibilityHint="Choose what this tile shows"
+    <View style={central ? undefined : { flex: 1 }}>
+      <DreamSelectionSheet
+        title={central ? "Large tile" : `Small tile ${props.index}`}
+        options={KPI_ACTIONS}
+        selected={[props.kpi || "empty"]}
         disabled={props.disabled}
-        onPress={() => {}}
-        className={cn(
-          "items-center justify-center rounded-2xl border px-3 active:opacity-70",
-          central ? "h-20 border-primary/40 bg-primary/10" : "h-16 border-border-subtle bg-subtle",
-          props.disabled && "opacity-45",
-        )}
+        onSelect={(id) => {
+          const next = id === "empty" ? "" : id;
+          if (Object.hasOwn(DREAM_KPIS, next)) props.onChange(next as DreamKpi);
+        }}
       >
-        <Text
-          numberOfLines={2}
-          textRole={central ? "headline" : "label"}
-          className={cn("text-center font-t3-medium", props.kpi === "" && "text-foreground-muted")}
-        >
-          {DREAM_KPIS[props.kpi]}
-        </Text>
-      </Pressable>
-    </Menu>
+        {(open) => (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${central ? "Large tile" : `Small tile ${props.index}`}: ${DREAM_KPIS[props.kpi]}`}
+            accessibilityHint="Choose what this tile shows"
+            accessibilityState={{ disabled: props.disabled }}
+            disabled={props.disabled}
+            onPress={open}
+            className={cn(
+              "items-center justify-center rounded-2xl border px-3 active:opacity-70",
+              central
+                ? "h-20 border-primary/40 bg-primary/10"
+                : "h-16 border-border-subtle bg-subtle",
+              props.disabled && "opacity-45",
+            )}
+          >
+            <Text
+              numberOfLines={2}
+              textRole={central ? "headline" : "label"}
+              className={cn(
+                "text-center font-t3-medium",
+                props.kpi === "" && "text-foreground-muted",
+              )}
+            >
+              {DREAM_KPIS[props.kpi]}
+            </Text>
+          </Pressable>
+        )}
+      </DreamSelectionSheet>
+    </View>
   );
 }
 
@@ -133,7 +141,13 @@ function Choice<Value extends string>(props: {
   readonly onSelect: (value: Value) => void;
 }) {
   return (
-    <View className={cn("gap-2 px-4 py-3", props.disabled && "opacity-45")}>
+    <View
+      accessible={props.disabled}
+      accessibilityLabel={`${props.label}: ${props.values[props.selected]}`}
+      accessibilityState={{ disabled: props.disabled }}
+      pointerEvents={props.disabled ? "none" : "auto"}
+      className={cn("gap-2 px-4 py-3", props.disabled && "opacity-45")}
+    >
       <Text textRole="footnote" className="text-foreground-muted">
         {props.label}
       </Text>
@@ -164,7 +178,7 @@ export function SettingsDeskDashboardRouteScreen() {
   const sessions = source.threads.filter(
     (thread) => thread.archivedAt === null && thread.deletedAt === null,
   );
-  const canOpenScreenSaver = supportsDream();
+  const canOpenScreenSaver = useMemo(() => supportsDream(), []);
   const customized = (Object.keys(defaults) as (keyof DreamPreferences)[]).some(
     (key) =>
       !["all", "projects", "threads"].includes(key) &&
@@ -301,59 +315,57 @@ export function SettingsDeskDashboardRouteScreen() {
               />
               {!preferences.all ? (
                 <>
-                  <Menu
-                    actions={source.projects.map((project) => ({
+                  <DreamSelectionSheet
+                    title="Projects"
+                    multiple
+                    options={source.projects.map((project) => ({
                       id: project.key,
                       title: project.title,
-                      state: preferences.projects.includes(project.key)
-                        ? ("on" as const)
-                        : ("off" as const),
                     }))}
-                    onPressAction={({ nativeEvent }) =>
-                      save((current) => ({ projects: toggle(current.projects, nativeEvent.event) }))
+                    selected={preferences.projects}
+                    disabled={!source.initialized}
+                    onClear={() => save({ projects: [] })}
+                    onSelect={(id) =>
+                      save((current) => ({ projects: toggle(current.projects, id) }))
                     }
                   >
-                    <RowPressable
-                      accessibilityRole="button"
-                      disabled={!ready || source.projects.length === 0}
-                      onPress={() => {}}
-                      className="border-t border-border-subtle bg-grouped-card"
-                    >
-                      <ListRowLayout
+                    {(open) => (
+                      <ListActionRow
                         label="Projects"
                         detail={count(preferences.projects.length, "project")}
-                        disabled={!ready || source.projects.length === 0}
+                        disabled={
+                          !source.initialized ||
+                          (source.projects.length === 0 && preferences.projects.length === 0)
+                        }
+                        onPress={open}
                       />
-                    </RowPressable>
-                  </Menu>
-                  <Menu
-                    actions={sessions.map((thread) => ({
+                    )}
+                  </DreamSelectionSheet>
+                  <DreamSelectionSheet
+                    title="Sessions"
+                    multiple
+                    options={sessions.map((thread) => ({
                       id: scopedThreadKey(thread.environmentId, thread.id),
                       title: thread.title,
                       subtitle: source.presentations.get(thread.environmentId)?.entry.target.label,
-                      state: preferences.threads.includes(
-                        scopedThreadKey(thread.environmentId, thread.id),
-                      )
-                        ? ("on" as const)
-                        : ("off" as const),
                     }))}
-                    onPressAction={({ nativeEvent }) =>
-                      save((current) => ({ threads: toggle(current.threads, nativeEvent.event) }))
-                    }
+                    selected={preferences.threads}
+                    disabled={!source.initialized}
+                    onClear={() => save({ threads: [] })}
+                    onSelect={(id) => save((current) => ({ threads: toggle(current.threads, id) }))}
                   >
-                    <RowPressable
-                      accessibilityRole="button"
-                      disabled={!ready || sessions.length === 0}
-                      onPress={() => {}}
-                      className="border-t border-border-subtle bg-grouped-card"
-                    >
-                      <ListRowLayout
+                    {(open) => (
+                      <ListActionRow
                         label="Sessions"
                         detail={count(preferences.threads.length, "session")}
-                        disabled={!ready || sessions.length === 0}
+                        disabled={
+                          !source.initialized ||
+                          (sessions.length === 0 && preferences.threads.length === 0)
+                        }
+                        onPress={open}
                       />
-                    </RowPressable>
-                  </Menu>
+                    )}
+                  </DreamSelectionSheet>
                 </>
               ) : null}
             </SettingsSection>

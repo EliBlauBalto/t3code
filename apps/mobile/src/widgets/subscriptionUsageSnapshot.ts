@@ -127,6 +127,9 @@ export function buildSubscriptionUsageSnapshot(
   url: string,
   maxWindowsPerProvider = 6,
 ): SubscriptionUsageSnapshot {
+  const sourceUnavailable = [...presentations.values()].some((presentation) =>
+    presentation.serverConfig?.usageLimitSources?.some((source) => Boolean(source.error)),
+  );
   const configuredDrivers = new Set(
     [...presentations.values()].flatMap((presentation) =>
       (presentation.serverConfig?.providers ?? [])
@@ -167,7 +170,9 @@ export function buildSubscriptionUsageSnapshot(
   return {
     ...snapshot,
     providers: snapshot.providers.map((provider) =>
-      unavailable.has(provider.name) ? { ...provider, partial: true } : provider,
+      sourceUnavailable || unavailable.has(provider.name)
+        ? { ...provider, partial: true }
+        : provider,
     ),
     url,
   };

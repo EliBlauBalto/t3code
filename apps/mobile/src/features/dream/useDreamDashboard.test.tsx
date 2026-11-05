@@ -18,10 +18,28 @@ vi.mock("../../connection/catalog", async () => ({
 }));
 vi.mock("../../state/presentation", async () => ({
   environmentPresentations: {
-    presentationsWithProvidersAtom: (await import("effect/reactivity")).Atom.make(new Map()),
+    presentationsWithProvidersAtom: (await import("effect/reactivity")).Atom.make(
+      new Map([
+        [
+          "env",
+          {
+            entry: { enabled: true, target: { label: "Fixture" } },
+            connection: { phase: "connected" },
+          },
+        ],
+      ]),
+    ),
   },
 }));
-vi.mock("../../state/shell", () => ({ environmentShell: {} }));
+vi.mock("../../state/shell", async () => {
+  const { Atom } = await import("effect/reactivity");
+  const Option = await import("effect/Option");
+  return {
+    environmentShell: {
+      stateValueAtom: () => Atom.make({ status: "live", snapshot: Option.some({ projects: [] }) }),
+    },
+  };
+});
 vi.mock("../../state/threads", async () => ({
   environmentThreadShells: {
     navigationThreadShellsAtom: (await import("effect/reactivity")).Atom.make([]),
@@ -100,6 +118,14 @@ it.effect("preserves separate Dream setting changes submitted before the next re
         palette: "mono",
         projects: ["one:p", "two:p"],
       });
+      sources[0]!.save({ projects: [], threads: ["env:archived"] });
+      yield* AtomRegistry.getResult(registry, updateMobilePreferencesAtom, {
+        suspendOnWaiting: true,
+      });
+      renderToString(
+        createElement(RegistryContext.Provider, { value: registry }, createElement(CaptureSources)),
+      );
+      expect([...sources.at(-1)!.environmentIds]).toEqual([]);
     } finally {
       unmountUpdate();
       unmount();

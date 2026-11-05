@@ -31,7 +31,11 @@ landscape layouts.
 Choose **Set as screen saver**, select **T3 Code**, and enable it while charging.
 Touching the screen saver exits. **Customize** in Android settings returns to the
 dashboard settings. Session counts follow your project and session choices; usage
-and quota retain their machine-wide scope. Usage refreshes every five minutes.
+and quota cover every session on the machines you selected. Usage refreshes every
+five minutes. The preview simulates each layout; it does not rotate your phone.
+System brightness follows Android's dimming; Medium and Low darken the display further.
+Project and session pickers support search and multiple choices. Saved unavailable
+choices can be removed from the picker or with **Clear selection**.
 
 ## Composer context
 

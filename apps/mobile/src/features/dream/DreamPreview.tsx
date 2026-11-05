@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useIsFocused } from "@react-navigation/native";
-import { Modal, Pressable, StatusBar, Text, useWindowDimensions, View } from "react-native";
+import { Modal, Pressable, StatusBar, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ListActionRow } from "../../components/ui/ListActionRow";
+import { AppText as Text } from "../../components/ui/AppText";
+import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import { DreamDisplay } from "./DreamDashboard";
 import type { useDreamSources } from "./useDreamDashboard";
 import { useAppForeground } from "../../lib/appState";
@@ -76,13 +78,14 @@ export function DreamPreview({ source }: { readonly source: ReturnType<typeof us
         navigationBarTranslucent
         onRequestClose={() => setExpanded(false)}
       >
-        <View style={{ flex: 1, backgroundColor: "#080808" }}>
+        <View className="flex-1 bg-screen">
           {expanded && focused && foreground ? <StatusBar hidden /> : null}
           <Pressable
             accessible={false}
             onPress={() => setExpanded(false)}
             onLayout={({ nativeEvent }) => setStage(nativeEvent.layout)}
             style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+            className="bg-black"
           >
             {stage.width > 0 && stage.height > 0 ? (
               <View
@@ -106,37 +109,35 @@ export function DreamPreview({ source }: { readonly source: ReturnType<typeof us
             ) : null}
           </Pressable>
           <View
+            className="border-t border-border-subtle bg-screen"
             style={{
               gap: 12,
               paddingHorizontal: 18,
               paddingTop: 14,
               paddingBottom: Math.max(18, insets.bottom),
-              borderTopWidth: 1,
-              borderTopColor: "#262626",
             }}
           >
             <View style={{ flexDirection: "row", gap: 10 }}>
-              {(["portrait", "landscape"] as const).map((value) => (
-                <Pressable
-                  key={value}
-                  accessibilityRole="radio"
-                  accessibilityLabel={`${value === "portrait" ? "Portrait" : "Landscape"} preview`}
-                  accessibilityState={{ checked: orientation === value }}
-                  onPress={() => setOrientation(value)}
-                  style={{
-                    flex: 1,
-                    minHeight: 48,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderRadius: 24,
-                    backgroundColor: orientation === value ? "#e8e8e8" : "#202020",
-                  }}
-                >
-                  <Text style={{ color: orientation === value ? "#111" : "#ddd", fontSize: 14 }}>
-                    {value === "portrait" ? "Portrait" : "Landscape"}
-                  </Text>
-                </Pressable>
-              ))}
+              <View style={{ flex: 1, justifyContent: "center" }}>
+                <SegmentedControl
+                  variant="card"
+                  role="tab"
+                  options={[
+                    {
+                      value: "portrait",
+                      label: "Portrait",
+                      accessibilityLabel: "Portrait preview",
+                    },
+                    {
+                      value: "landscape",
+                      label: "Landscape",
+                      accessibilityLabel: "Landscape preview",
+                    },
+                  ]}
+                  selected={orientation}
+                  onSelect={setOrientation}
+                />
+              </View>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Close preview"
@@ -148,11 +149,13 @@ export function DreamPreview({ source }: { readonly source: ReturnType<typeof us
                   justifyContent: "center",
                 }}
               >
-                <Text style={{ color: "#ddd", fontSize: 14 }}>Done</Text>
+                <Text textRole="footnote" className="font-t3-medium text-primary">
+                  Done
+                </Text>
               </Pressable>
             </View>
-            <Text style={{ color: "#aaa", fontSize: 12, textAlign: "center" }}>
-              Tap the preview to close
+            <Text textRole="caption" className="text-center text-foreground-muted">
+              Layout preview · tap the canvas to close
             </Text>
           </View>
         </View>

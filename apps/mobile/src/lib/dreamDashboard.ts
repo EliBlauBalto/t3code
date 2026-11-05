@@ -8,7 +8,7 @@ import { scopedProjectKey, scopedThreadKey } from "./scopedEntities";
 export const DREAM_KPIS = {
   status: "Session status",
   working: "Working",
-  input: "Input",
+  input: "Approvals",
   questions: "Questions",
   finished: "Finished",
   failed: "Failed",
@@ -25,7 +25,7 @@ export const DREAM_PALETTES = { theme: "Theme", mono: "Monochrome", amber: "Ambe
 export type DreamPalette = keyof typeof DREAM_PALETTES;
 export const DREAM_CLOCKS = { system: "System", "12": "12-hour", "24": "24-hour" } as const;
 export type DreamClock = keyof typeof DREAM_CLOCKS;
-export const DREAM_BRIGHTNESS = { full: "Full", medium: "Medium", low: "Low" } as const;
+export const DREAM_BRIGHTNESS = { full: "System", medium: "Medium", low: "Low" } as const;
 export type DreamBrightness = keyof typeof DREAM_BRIGHTNESS;
 export const DREAM_DIM_OPACITY: Record<DreamBrightness, number> = {
   full: 0,
@@ -63,6 +63,7 @@ export function resolveDreamQuota(
     readonly windows: readonly { readonly remaining: number; readonly label: string }[];
   }[],
   now: number,
+  incomplete = false,
 ) {
   const tightest = providers
     .flatMap((provider) =>
@@ -74,10 +75,14 @@ export function resolveDreamQuota(
   return tightest
     ? {
         ...tightest,
-        partial: providers.some(
-          (provider) =>
-            provider.partial === true || provider.expiresAt <= now || provider.windows.length === 0,
-        ),
+        partial:
+          incomplete ||
+          providers.some(
+            (provider) =>
+              provider.partial === true ||
+              provider.expiresAt <= now ||
+              provider.windows.length === 0,
+          ),
       }
     : null;
 }

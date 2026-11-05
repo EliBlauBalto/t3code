@@ -6,6 +6,7 @@ export interface DreamUsageReading {
   readonly tokens: number;
   readonly costUsd: number | null;
   readonly estimated: boolean;
+  readonly partial: boolean;
   readonly refreshing: boolean;
 }
 
@@ -25,7 +26,14 @@ export function resolveDreamUsage(
         entry.isConnected &&
         entry.canReadDiagnostics &&
         entry.error === null &&
-        (entry.summary === null || entry.summary.sources.every((source) => source.status === "ok")),
+        (entry.summary === null ||
+          entry.summary.sources.every(
+            (source) =>
+              (source.status === "ok" ||
+                source.status === "partial" ||
+                source.status === "missing") &&
+              (source.refreshing !== true || entry.isPending),
+          )),
     );
   const ready =
     available &&
@@ -33,17 +41,13 @@ export function resolveDreamUsage(
       (entry) =>
         entry.summary !== null &&
         !entry.isPending &&
-        entry.summary.sources.length > 0 &&
-        entry.summary.sources.every(
-          (source) => source.status === "ok" && source.refreshing !== true,
+        entry.summary.sources.some(
+          (source) => source.status === "ok" || source.status === "partial",
         ),
     );
   if (!ready) {
     const pending = usage.selectedEnvironments.some(
-      (entry) =>
-        entry.summary === null ||
-        entry.isPending ||
-        entry.summary.sources.some((source) => source.refreshing === true),
+      (entry) => entry.summary === null || entry.isPending,
     );
     return available && pending && previous?.scope === scope
       ? previous.refreshing
@@ -56,6 +60,9 @@ export function resolveDreamUsage(
     tokens: usage.merged.totalTokens,
     costUsd: usage.merged.costQuality.unpricedShare === 0 ? usage.merged.costUsd : null,
     estimated: usage.merged.costQuality.modelPricedShare > 0,
+    partial: usage.selectedEnvironments.some((entry) =>
+      entry.summary?.sources.some((source) => source.status === "partial"),
+    ),
     refreshing: false,
   };
   return JSON.stringify(previous) === JSON.stringify(next) ? previous : next;

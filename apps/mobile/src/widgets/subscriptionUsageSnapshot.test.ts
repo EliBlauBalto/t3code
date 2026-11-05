@@ -99,6 +99,18 @@ describe("subscription widget snapshots", () => {
     const snapshot = buildSubscriptionUsageSnapshot(input, deepLink);
     expect(snapshot.providers[0]?.name).toBe("Codex");
     expect(JSON.stringify(snapshot)).not.toContain("example.com");
+    const config = input.get(EnvironmentId.make("env"))!.serverConfig;
+    config.providers = [provider()];
+    const failedSource = {
+      ...config.usageLimitSources[0]!,
+      error: "Fixture source could not enumerate accounts",
+      accounts: [],
+    };
+    config.usageLimitSources = [failedSource];
+    expect(buildSubscriptionUsageSnapshot(input, deepLink).providers[0]).toMatchObject({
+      windows: [{ remaining: 60 }],
+      partial: true,
+    });
   });
   it("bounds OS storage and puts the most constrained windows first", () => {
     const windows = Array.from({ length: 20 }, (_, index) => ({
