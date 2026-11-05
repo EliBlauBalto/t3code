@@ -375,8 +375,8 @@ public final class StartupInstrumentation extends Instrumentation {
     }
   }
 
-  private void restoreSettingsAfterResize(UiAutomation automation, Intent settings) throws Exception {
-    automation.waitForIdle(100, 30000);
+  private void restoreSettingsAfterResize(UiAutomation automation, Intent settings, Intent launch) throws Exception {
+    awaitScreen(automation, () -> getContext().startActivity(launch), "Chats");
     awaitScreen(automation, () -> getContext().startActivity(settings), "Dashboard style");
   }
 
@@ -605,7 +605,7 @@ public final class StartupInstrumentation extends Instrumentation {
           shell(automation, "wm size reset");
           shell(automation, "wm density reset");
           automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
-          restoreSettingsAfterResize(automation, settings);
+          restoreSettingsAfterResize(automation, settings, launch);
         }
         result.putString("responsiveStyles", "PASS");
         result.putString("stage", "background Clock advancement");
@@ -653,7 +653,7 @@ public final class StartupInstrumentation extends Instrumentation {
           shell(automation, "wm size reset");
           shell(automation, "wm density reset");
           automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
-          restoreSettingsAfterResize(automation, settings);
+          restoreSettingsAfterResize(automation, settings, launch);
         }
         selectLargeTile(automation, "Tokens · 24h", "Session status");
         result.putString("stage", "cold populated landscape layout");
@@ -698,7 +698,7 @@ public final class StartupInstrumentation extends Instrumentation {
             () -> exitDream(automation), event -> launcherVisible(automation), 30000);
         shell(automation, "wm size reset");
         shell(automation, "wm density reset");
-        restoreSettingsAfterResize(automation, settings);
+        restoreSettingsAfterResize(automation, settings, launch);
       }
       result.putString("stage", "unsupported device capability");
       ComponentName systemSettings = new Intent(android.provider.Settings.ACTION_DREAM_SETTINGS)
