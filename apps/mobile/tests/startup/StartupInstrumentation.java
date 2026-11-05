@@ -65,6 +65,21 @@ public final class StartupInstrumentation extends Instrumentation {
     return text.toString();
   }
 
+  private String screenTree(AccessibilityNodeInfo node) {
+    if (node == null) return "";
+    Rect bounds = new Rect();
+    node.getBoundsInScreen(bounds);
+    StringBuilder tree = new StringBuilder();
+    tree.append(node.getClassName()).append(' ').append(bounds.flattenToString())
+        .append(" actions=").append(node.getActionList())
+        .append(" text=").append(node.getText())
+        .append(" label=").append(node.getContentDescription()).append('\n');
+    for (int index = 0; index < node.getChildCount(); index++) {
+      tree.append(screenTree(node.getChild(index)));
+    }
+    return tree.toString();
+  }
+
   private int systemDialogs = 0;
   private int systemGuides = 0;
 
@@ -135,6 +150,9 @@ public final class StartupInstrumentation extends Instrumentation {
     String text = screenText(automation.getRootInActiveWindow());
     try (FileOutputStream file = new FileOutputStream(new File(directory, name + ".txt"))) {
       file.write(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+    try (FileOutputStream file = new FileOutputStream(new File(directory, name + ".tree.txt"))) {
+      file.write(screenTree(automation.getRootInActiveWindow()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
     Bitmap screenshot = automation.takeScreenshot();
     if (screenshot == null) throw new AssertionError("Screenshot unavailable: " + name);
@@ -210,6 +228,16 @@ public final class StartupInstrumentation extends Instrumentation {
     return null;
   }
 
+  private AccessibilityNodeInfo actionNode(AccessibilityNodeInfo node, AccessibilityNodeInfo.AccessibilityAction action) {
+    if (node == null) return null;
+    if (node.getActionList().contains(action)) return node;
+    for (int index = 0; index < node.getChildCount(); index++) {
+      AccessibilityNodeInfo found = actionNode(node.getChild(index), action);
+      if (found != null) return found;
+    }
+    return null;
+  }
+
   private void scrollTo(UiAutomation automation, String label) throws Exception {
     scrollTo(automation, label, AccessibilityNodeInfo.ACTION_SCROLL_FORWARD);
   }
@@ -245,6 +273,20 @@ public final class StartupInstrumentation extends Instrumentation {
     String currentLabel = "Large tile: " + current;
     scrollTo(automation, currentLabel);
     awaitScreen(automation, () -> tapText(automation, currentLabel), "Empty");
+    AccessibilityNodeInfo sheet = actionNode(automation.getRootInActiveWindow(),
+        AccessibilityNodeInfo.AccessibilityAction.ACTION_EXPAND);
+    if (sheet != null) {
+      Rect title = textBounds(automation.getRootInActiveWindow(), "Large tile");
+      automation.executeAndWaitForEvent(() -> {
+        if (!sheet.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_EXPAND.getId())) {
+          throw new AssertionError("Cannot expand the tile picker");
+        }
+      }, event -> {
+        Rect expanded = textBounds(automation.getRootInActiveWindow(), "Large tile");
+        return title != null && expanded != null && expanded.top < title.top;
+      }, 30000);
+      automation.waitForIdle(100, 30000);
+    }
     scrollTo(automation, next);
     awaitScreen(automation, () -> tapText(automation, next), "Large tile: " + next);
   }
@@ -459,7 +501,14 @@ public final class StartupInstrumentation extends Instrumentation {
             shell(automation, "wm size " + viewport[1]);
             shell(automation, "wm density " + viewport[2]);
             automation.setRotation("1".equals(viewport[3]) ? UiAutomation.ROTATION_FREEZE_90 : UiAutomation.ROTATION_FREEZE_0);
-            awaitScreen(automation, () -> startDream(automation), "Clock".equals(style) ? "working" : "Session status");
+            automation.executeAndWaitForEvent(() -> startDream(automation), event -> {
+              String view = screenText(automation.getRootInActiveWindow());
+              if (dismissSystemDialog(automation, view)) return false;
+              return has(view, "Clock".equals(style) ? "working" : "Session status")
+                  && (!"Dashboard".equals(style)
+                      || (has(view, "300K") && has(view, "$0.96") && has(view, "36%")));
+            }, 30000);
+            if ("Dashboard".equals(style)) result.putString("populatedMetrics", "PASS");
             String display = screenText(automation.getRootInActiveWindow());
             if (has(display, "Connect your first machine") || has(display, "Waiting for a connection")) {
               throw new AssertionError("Paired screen saver lost live data");
@@ -499,6 +548,7 @@ public final class StartupInstrumentation extends Instrumentation {
                     && status != null && tokens != null && !status.isEmpty() && !tokens.isEmpty()
                     && coldScreen.contains(status) && coldScreen.contains(tokens)
                     && tokens.left > status.right
+                    && has(coldText, "300K") && has(coldText, "$0.96") && has(coldText, "36%")
                     && !has(coldText, "Connect your first machine")
                     && !has(coldText, "Waiting for a connection");
               }, 30000);

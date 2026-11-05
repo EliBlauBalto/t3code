@@ -1,4 +1,4 @@
-// @effect-diagnostics nodeBuiltinImport:off - Owns disposable fixture servers and the native test runner.
+// @effect-diagnostics nodeBuiltinImport:off globalDate:off - Owns disposable fixture servers and the native test runner.
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFSP from "node:fs/promises";
 import * as NodeOS from "node:os";
@@ -16,6 +16,66 @@ const waitForExit = (child: NodeChildProcess.ChildProcess) =>
   });
 const root = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "dream-fixture-"));
 try {
+  const provider = NodePath.join(root, "codex-fixture.cjs");
+  await NodeFSP.copyFile(
+    NodeURL.fileURLToPath(
+      new URL("../apps/mobile/tests/startup/codex-fixture.cjs", import.meta.url),
+    ),
+    provider,
+  );
+  await NodeFSP.chmod(provider, 0o755);
+  for (const environment of SHOWCASE_ENVIRONMENTS.slice(0, 2)) {
+    const baseDir = NodePath.join(root, "environments", environment.id);
+    const stateDir = NodePath.join(baseDir, "userdata");
+    const home = NodePath.join(baseDir, "codex");
+    await NodeFSP.mkdir(NodePath.join(home, "sessions"), { recursive: true });
+    await NodeFSP.mkdir(stateDir, { recursive: true });
+    await NodeFSP.writeFile(
+      NodePath.join(stateDir, "settings.json"),
+      JSON.stringify({
+        providerInstances: {
+          codex: {
+            driver: "codex",
+            enabled: true,
+            config: {
+              setupMode: "existing",
+              binaryPath: provider,
+              homePath: home,
+            },
+          },
+        },
+      }),
+    );
+    await NodeFSP.writeFile(
+      NodePath.join(stateDir, "usage-model-rates.json"),
+      JSON.stringify({
+        fetchedAtMs: Date.now(),
+        document: {
+          "gpt-6-astra": { input_cost_per_token: 0.000002, output_cost_per_token: 0.000008 },
+        },
+      }),
+    );
+    const timestamp = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    await NodeFSP.writeFile(
+      NodePath.join(home, "sessions", "dream-fixture.jsonl"),
+      [
+        { type: "session_meta", payload: { id: `dream-${environment.id}` } },
+        { type: "turn_context", payload: { model: "gpt-6-astra" } },
+        {
+          type: "event_msg",
+          timestamp,
+          payload: {
+            type: "token_count",
+            info: {
+              last_token_usage: { input_tokens: 120000, output_tokens: 30000 },
+            },
+          },
+        },
+      ]
+        .map((record) => JSON.stringify(record))
+        .join("\n") + "\n",
+    );
+  }
   const environments = await startShowcaseEnvironments(
     root,
     (child) => owned.push(child),
