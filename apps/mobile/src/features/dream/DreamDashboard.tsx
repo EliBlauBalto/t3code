@@ -110,6 +110,196 @@ export function DreamDashboard() {
   return <DreamDisplay source={source} />;
 }
 
+function DreamTile({
+  kpi,
+  large,
+  focused,
+  scale,
+  fontScale,
+  colors,
+  counts,
+  unavailable,
+  partial,
+  value,
+}: {
+  readonly kpi: DreamKpi;
+  readonly large: boolean;
+  readonly focused: boolean;
+  readonly scale: number;
+  readonly fontScale: number;
+  readonly colors: ReturnType<typeof resolvePalette>;
+  readonly counts: ReturnType<typeof summarizeDreamThreads>;
+  readonly unavailable: boolean;
+  readonly partial: boolean;
+  readonly value: {
+    readonly value: string;
+    readonly detail: string;
+    readonly alert: boolean;
+    readonly progress?: number | null;
+  };
+}) {
+  const [size, setSize] = useState<{ width: number; height: number }>();
+  const number = (value: number) => (unavailable ? "–" : `${partial ? "~" : ""}${value}`);
+  const needsYou = (kpi: "input" | "questions") => !unavailable && counts[kpi] > 0;
+  if (kpi === "") return <View style={styles.card} />;
+  const tileScale = dreamTileScale(scale, size, large, fontScale);
+  const attention =
+    kpi === "status"
+      ? needsYou("input") || needsYou("questions") || counts.failed > 0
+      : kpi === "input" || kpi === "questions"
+        ? needsYou(kpi)
+        : value.alert;
+  const valueColor = value.alert
+    ? colors.alert
+    : (kpi === "input" || kpi === "questions") && needsYou(kpi)
+      ? colors.accent
+      : colors.foreground;
+  return (
+    <View
+      onLayout={({ nativeEvent: { layout } }) =>
+        setSize((current) =>
+          current?.width === layout.width && current?.height === layout.height
+            ? current
+            : { width: layout.width, height: layout.height },
+        )
+      }
+      style={[
+        styles.card,
+        {
+          backgroundColor: focused
+            ? "transparent"
+            : large
+              ? themeColorWithAlpha(colors.accent, attention ? 0.09 : 0.045)
+              : colors.card,
+          borderRadius: large ? 24 : 18,
+          padding: Math.round((large ? 26 : 18) * tileScale),
+          borderWidth: focused ? 0 : 1,
+          borderColor: attention
+            ? themeColorWithAlpha(colors.accent, 0.55)
+            : themeColorWithAlpha(colors.foreground, 0.07),
+        },
+      ]}
+    >
+      <View style={styles.cardLabel}>
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.label,
+            { color: colors.secondary, fontSize: Math.max(11, (large ? 13 : 11) * tileScale) },
+          ]}
+        >
+          {DREAM_KPIS[kpi]}
+        </Text>
+        {attention ? (
+          <View
+            style={[
+              styles.dot,
+              {
+                backgroundColor:
+                  value.alert || (kpi === "status" && counts.failed > 0)
+                    ? colors.alert
+                    : colors.accent,
+              },
+            ]}
+          />
+        ) : null}
+      </View>
+      {kpi === "status" ? (
+        <View style={styles.statusGrid}>
+          {(["working", "input", "questions", "finished"] as const).map((key) => (
+            <View key={key} style={styles.statusCell}>
+              <Text
+                adjustsFontSizeToFit
+                numberOfLines={1}
+                style={[
+                  styles.number,
+                  {
+                    color:
+                      (key === "input" || key === "questions") && needsYou(key)
+                        ? colors.accent
+                        : counts[key] === 0
+                          ? colors.secondary
+                          : colors.foreground,
+                    fontSize: (large ? 60 : 30) * tileScale,
+                  },
+                ]}
+              >
+                {number(counts[key])}
+              </Text>
+              <Text
+                numberOfLines={1}
+                style={{
+                  color: colors.secondary,
+                  fontSize: Math.max(11, (large ? 14 : 11) * tileScale),
+                }}
+              >
+                {DREAM_KPIS[key]}
+              </Text>
+            </View>
+          ))}
+          {large && !unavailable && counts.waiting + counts.failed + counts.limited > 0 ? (
+            <Text
+              numberOfLines={1}
+              style={{ color: colors.secondary, fontSize: Math.max(11, 13 * tileScale) }}
+            >
+              {number(counts.waiting)} waiting ·{" "}
+              <Text style={counts.failed > 0 ? { color: colors.alert } : undefined}>
+                {number(counts.failed)} failed
+              </Text>{" "}
+              · {number(counts.limited)} limited
+            </Text>
+          ) : null}
+        </View>
+      ) : (
+        <View style={[styles.cardValue, focused && styles.focusValue]}>
+          <Text
+            adjustsFontSizeToFit
+            numberOfLines={1}
+            style={[
+              styles.number,
+              {
+                color: valueColor,
+                fontSize: (large ? (focused ? 116 : 88) : 44) * tileScale,
+                textAlign: focused ? "center" : "left",
+              },
+            ]}
+          >
+            {value.value}
+          </Text>
+          {kpi === "limits" && typeof value.progress === "number" ? (
+            <View
+              style={[
+                styles.track,
+                { backgroundColor: themeColorWithAlpha(colors.foreground, 0.12) },
+              ]}
+            >
+              <View
+                style={[
+                  styles.fill,
+                  {
+                    width: `${value.progress}%`,
+                    backgroundColor: value.alert ? colors.alert : colors.accent,
+                  },
+                ]}
+              />
+            </View>
+          ) : null}
+          <Text
+            numberOfLines={1}
+            style={{
+              color: colors.secondary,
+              fontSize: Math.max(10, (large ? 13 : 11) * tileScale),
+              textAlign: focused ? "center" : "left",
+            }}
+          >
+            {value.detail}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
 export function DreamDisplay({ source }: { readonly source: ReturnType<typeof useDreamSources> }) {
   const { preferences } = source;
   const visibleSlots = dreamVisibleSlots(preferences);
@@ -133,7 +323,6 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
   const { themeVariablesByAppearance } = useAppearancePreferences();
   const colors = resolvePalette(preferences.palette, themeVariablesByAppearance.dark);
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const [tileSizes, setTileSizes] = useState<Record<number, { width: number; height: number }>>({});
   const { fontScale } = useWindowDimensions();
   const wide = size.width >= 600 && size.width > size.height;
   const scale = Math.max(0.65, Math.min(1.35, Math.min(size.width / 400, size.height / 680)));
@@ -204,6 +393,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
                 ? "Waiting for live quota"
                 : "No quota available",
           alert: quotaRemaining !== null && quotaRemaining <= 10,
+          progress: quotaRemaining,
         };
       case "connections":
         return {
@@ -225,168 +415,21 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
         return { value: "", detail: "", alert: false };
     }
   };
-  const needsYou = (kpi: "input" | "questions") => !unavailable && counts[kpi] > 0;
-  const card = (kpi: DreamKpi, index: number, large: boolean) => {
-    if (kpi === "") return <View key={index} style={styles.card} />;
-    const tileScale = dreamTileScale(scale, tileSizes[index], large, fontScale);
-    const value = metric(kpi);
-    const attention =
-      kpi === "status"
-        ? needsYou("input") || needsYou("questions") || counts.failed > 0
-        : kpi === "input" || kpi === "questions"
-          ? needsYou(kpi)
-          : value.alert;
-    const valueColor = value.alert
-      ? colors.alert
-      : (kpi === "input" || kpi === "questions") && needsYou(kpi)
-        ? colors.accent
-        : colors.foreground;
-    return (
-      <View
-        key={index}
-        onLayout={({ nativeEvent: { layout } }) =>
-          setTileSizes((current) => {
-            if (current[index]?.width === layout.width && current[index]?.height === layout.height)
-              return current;
-            return { ...current, [index]: { width: layout.width, height: layout.height } };
-          })
-        }
-        style={[
-          styles.card,
-          {
-            backgroundColor: focused
-              ? "transparent"
-              : large
-                ? themeColorWithAlpha(colors.accent, attention ? 0.09 : 0.045)
-                : colors.card,
-            borderRadius: large ? 24 : 18,
-            padding: Math.round((large ? 26 : 18) * tileScale),
-            borderWidth: focused ? 0 : 1,
-            borderColor: attention
-              ? themeColorWithAlpha(colors.accent, 0.55)
-              : themeColorWithAlpha(colors.foreground, 0.07),
-          },
-        ]}
-      >
-        <View style={styles.cardLabel}>
-          <Text
-            numberOfLines={1}
-            style={[
-              styles.label,
-              { color: colors.secondary, fontSize: Math.max(11, (large ? 13 : 11) * tileScale) },
-            ]}
-          >
-            {DREAM_KPIS[kpi]}
-          </Text>
-          {attention ? (
-            <View
-              style={[
-                styles.dot,
-                {
-                  backgroundColor:
-                    value.alert || (kpi === "status" && counts.failed > 0)
-                      ? colors.alert
-                      : colors.accent,
-                },
-              ]}
-            />
-          ) : null}
-        </View>
-        {kpi === "status" ? (
-          <View style={styles.statusGrid}>
-            {(["working", "input", "questions", "finished"] as const).map((key) => (
-              <View key={key} style={styles.statusCell}>
-                <Text
-                  adjustsFontSizeToFit
-                  numberOfLines={1}
-                  style={[
-                    styles.number,
-                    {
-                      color:
-                        (key === "input" || key === "questions") && needsYou(key)
-                          ? colors.accent
-                          : counts[key] === 0
-                            ? colors.secondary
-                            : colors.foreground,
-                      fontSize: (large ? 60 : 30) * tileScale,
-                    },
-                  ]}
-                >
-                  {number(counts[key])}
-                </Text>
-                <Text
-                  numberOfLines={1}
-                  style={{
-                    color: colors.secondary,
-                    fontSize: Math.max(11, (large ? 14 : 11) * tileScale),
-                  }}
-                >
-                  {DREAM_KPIS[key]}
-                </Text>
-              </View>
-            ))}
-            {large && !unavailable && counts.waiting + counts.failed + counts.limited > 0 ? (
-              <Text
-                numberOfLines={1}
-                style={{ color: colors.secondary, fontSize: Math.max(11, 13 * tileScale) }}
-              >
-                {number(counts.waiting)} waiting ·{" "}
-                <Text style={counts.failed > 0 ? { color: colors.alert } : undefined}>
-                  {number(counts.failed)} failed
-                </Text>{" "}
-                · {number(counts.limited)} limited
-              </Text>
-            ) : null}
-          </View>
-        ) : (
-          <View style={[styles.cardValue, focused && styles.focusValue]}>
-            <Text
-              adjustsFontSizeToFit
-              numberOfLines={1}
-              style={[
-                styles.number,
-                {
-                  color: valueColor,
-                  fontSize: (large ? (focused ? 116 : 88) : 44) * tileScale,
-                  textAlign: focused ? "center" : "left",
-                },
-              ]}
-            >
-              {value.value}
-            </Text>
-            {kpi === "limits" && quotaRemaining !== null ? (
-              <View
-                style={[
-                  styles.track,
-                  { backgroundColor: themeColorWithAlpha(colors.foreground, 0.12) },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.fill,
-                    {
-                      width: `${quotaRemaining}%`,
-                      backgroundColor: value.alert ? colors.alert : colors.accent,
-                    },
-                  ]}
-                />
-              </View>
-            ) : null}
-            <Text
-              numberOfLines={1}
-              style={{
-                color: colors.secondary,
-                fontSize: Math.max(10, (large ? 13 : 11) * tileScale),
-                textAlign: focused ? "center" : "left",
-              }}
-            >
-              {value.detail}
-            </Text>
-          </View>
-        )}
-      </View>
-    );
-  };
+  const card = (kpi: DreamKpi, index: number, large: boolean) => (
+    <DreamTile
+      key={index}
+      kpi={kpi}
+      large={large}
+      focused={focused}
+      scale={scale}
+      fontScale={fontScale}
+      colors={colors}
+      counts={counts}
+      unavailable={unavailable}
+      partial={partial}
+      value={metric(kpi)}
+    />
+  );
   const connection = {
     loading: {
       text: "Connecting…",
