@@ -555,6 +555,7 @@ public final class StartupInstrumentation extends Instrumentation {
             if ("Dashboard".equals(style) && "phone-landscape".equals(viewport[0])) {
               result.putString("stage", "cold populated landscape layout");
               String populatedPid = shell(automation, "pidof com.t3tools.t3code.dream");
+              awaitScreen(automation, () -> exitDream(automation), "Chats");
               automation.executeAndWaitForEvent(() -> {
                 automation.injectInputEvent(new android.view.KeyEvent(
                     android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_HOME), true);
@@ -562,6 +563,7 @@ public final class StartupInstrumentation extends Instrumentation {
                     android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_HOME), true);
               }, event -> launcherVisible(automation), 30000);
               shell(automation, "am force-stop com.t3tools.t3code.dream");
+              automation.setRotation(UiAutomation.ROTATION_FREEZE_90);
               automation.executeAndWaitForEvent(() -> startDream(automation), event -> {
                 AccessibilityNodeInfo coldRoot = automation.getRootInActiveWindow();
                 if (coldRoot == null) return false;
