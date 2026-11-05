@@ -525,12 +525,17 @@ public final class StartupInstrumentation extends Instrumentation {
             shell(automation, "wm size " + viewport[1]);
             shell(automation, "wm density " + viewport[2]);
             automation.setRotation("1".equals(viewport[3]) ? UiAutomation.ROTATION_FREEZE_90 : UiAutomation.ROTATION_FREEZE_0);
+            boolean expectedLandscape = viewport[0].equals("phone-landscape") || viewport[0].equals("tablet");
             automation.executeAndWaitForEvent(() -> startDream(automation), event -> {
               AccessibilityNodeInfo root = automation.getRootInActiveWindow();
               String view = screenText(root);
               Rect liveStatus = textBounds(root, "Live");
               if (dismissSystemDialog(automation, view)) return false;
+              if (root == null) return false;
+              Rect bounds = new Rect();
+              root.getBoundsInScreen(bounds);
               return has(view, "Clock".equals(style) ? "working" : "Session status")
+                  && (bounds.width() > bounds.height()) == expectedLandscape
                   && liveStatus != null && !liveStatus.isEmpty()
                   && (!"Dashboard".equals(style)
                       || (has(view, "300K") && has(view, "$0.96") && has(view, "36%")));
@@ -552,49 +557,7 @@ public final class StartupInstrumentation extends Instrumentation {
                 throw new AssertionError("Clipped " + label + " in " + style + " " + viewport[0]);
               }
             }
-            if ("Dashboard".equals(style) && "phone-landscape".equals(viewport[0])) {
-              result.putString("stage", "cold populated landscape layout");
-              String populatedPid = shell(automation, "pidof com.t3tools.t3code.dream");
-              awaitScreen(automation, () -> exitDream(automation), "Chats");
-              automation.executeAndWaitForEvent(() -> {
-                automation.injectInputEvent(new android.view.KeyEvent(
-                    android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_HOME), true);
-                automation.injectInputEvent(new android.view.KeyEvent(
-                    android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_HOME), true);
-              }, event -> launcherVisible(automation), 30000);
-              shell(automation, "am force-stop com.t3tools.t3code.dream");
-              automation.setRotation(UiAutomation.ROTATION_FREEZE_90);
-              automation.executeAndWaitForEvent(() -> startDream(automation), event -> {
-                AccessibilityNodeInfo coldRoot = automation.getRootInActiveWindow();
-                if (coldRoot == null) return false;
-                String coldText = screenText(coldRoot);
-                if (dismissSystemDialog(automation, coldText)) return false;
-                Rect coldScreen = new Rect();
-                coldRoot.getBoundsInScreen(coldScreen);
-                Rect status = textBounds(coldRoot, "Session status");
-                Rect tokens = textBounds(coldRoot, "Tokens · 24h");
-                Rect liveStatus = textBounds(coldRoot, "Live");
-                return coldScreen.width() > coldScreen.height()
-                    && status != null && tokens != null && !status.isEmpty() && !tokens.isEmpty()
-                    && coldScreen.contains(status) && coldScreen.contains(tokens)
-                    && tokens.left > status.right
-                    && liveStatus != null && !liveStatus.isEmpty()
-                    && has(coldText, "300K") && has(coldText, "$0.96") && has(coldText, "36%")
-                    && !has(coldText, "Connect your first machine")
-                    && !has(coldText, "Waiting for a connection");
-              }, 30000);
-              String populatedColdPid = shell(automation, "pidof com.t3tools.t3code.dream");
-              if (populatedPid.isEmpty() || populatedColdPid.isEmpty() || populatedPid.equals(populatedColdPid)) {
-                throw new AssertionError("Populated Dream did not cold-start a new app process");
-              }
-              capture(automation, "live-dashboard-phone-landscape-cold");
-              result.putString("coldPopulatedLayout", "PASS");
-              automation.executeAndWaitForEvent(
-                  () -> exitDream(automation), event -> launcherVisible(automation), 30000);
-              awaitScreen(automation, () -> getContext().startActivity(settings), "Dashboard style");
-            } else {
-              exitDreamToSettings(automation, settings);
-            }
+            exitDreamToSettings(automation, settings);
           }
           shell(automation, "wm size reset");
           shell(automation, "wm density reset");
@@ -648,6 +611,49 @@ public final class StartupInstrumentation extends Instrumentation {
           automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
         }
         selectLargeTile(automation, "Tokens · 24h", "Session status");
+        result.putString("stage", "cold populated landscape layout");
+        String populatedPid = shell(automation, "pidof com.t3tools.t3code.dream");
+        automation.executeAndWaitForEvent(() -> {
+          automation.injectInputEvent(new android.view.KeyEvent(
+              android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_HOME), true);
+          automation.injectInputEvent(new android.view.KeyEvent(
+              android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_HOME), true);
+        }, event -> launcherVisible(automation), 30000);
+        shell(automation, "am force-stop com.t3tools.t3code.dream");
+        // Give the cold process a landscape display without relying on launcher rotation policy.
+        shell(automation, "wm size 1920x1080");
+        shell(automation, "wm density 480");
+        automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
+        automation.executeAndWaitForEvent(() -> startDream(automation), event -> {
+          AccessibilityNodeInfo coldRoot = automation.getRootInActiveWindow();
+          if (coldRoot == null) return false;
+          String coldText = screenText(coldRoot);
+          if (dismissSystemDialog(automation, coldText)) return false;
+          Rect coldScreen = new Rect();
+          coldRoot.getBoundsInScreen(coldScreen);
+          Rect status = textBounds(coldRoot, "Session status");
+          Rect tokens = textBounds(coldRoot, "Tokens · 24h");
+          Rect liveStatus = textBounds(coldRoot, "Live");
+          return coldScreen.width() > coldScreen.height()
+              && status != null && tokens != null && !status.isEmpty() && !tokens.isEmpty()
+              && coldScreen.contains(status) && coldScreen.contains(tokens)
+              && tokens.left > status.right
+              && liveStatus != null && !liveStatus.isEmpty()
+              && has(coldText, "300K") && has(coldText, "$0.96") && has(coldText, "36%")
+              && !has(coldText, "Connect your first machine")
+              && !has(coldText, "Waiting for a connection");
+        }, 30000);
+        String populatedColdPid = shell(automation, "pidof com.t3tools.t3code.dream");
+        if (populatedPid.isEmpty() || populatedColdPid.isEmpty() || populatedPid.equals(populatedColdPid)) {
+          throw new AssertionError("Populated Dream did not cold-start a new app process");
+        }
+        capture(automation, "live-dashboard-phone-landscape-cold");
+        result.putString("coldPopulatedLayout", "PASS");
+        automation.executeAndWaitForEvent(
+            () -> exitDream(automation), event -> launcherVisible(automation), 30000);
+        shell(automation, "wm size reset");
+        shell(automation, "wm density reset");
+        awaitScreen(automation, () -> getContext().startActivity(settings), "Dashboard style");
       }
       result.putString("stage", "unsupported device capability");
       ComponentName systemSettings = new Intent(android.provider.Settings.ACTION_DREAM_SETTINGS)
