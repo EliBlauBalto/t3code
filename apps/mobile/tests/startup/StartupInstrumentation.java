@@ -486,12 +486,17 @@ public final class StartupInstrumentation extends Instrumentation {
       if (fixture.length() > 0) {
         result.putString("stage", "pair isolated showcase environments");
         for (int index = 0; index < fixture.length(); index++) {
+          result.putString("stage", "pair isolated showcase environment " + (index + 1));
           Intent pair = new Intent(Intent.ACTION_VIEW,
               android.net.Uri.parse("t3code-dream://connections/new"))
               .setPackage("com.t3tools.t3code.dream").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
           awaitScreen(automation, () -> getContext().startActivity(pair), "Address");
           enterText(automation, "Address", fixture.getJSONObject(index).getString("address"));
-          enterText(automation, "Code", fixture.getJSONObject(index).getString("code"));
+          String pairingCode = fixture.getJSONObject(index).getString("code");
+          automation.executeAndWaitForEvent(() -> enterText(automation, "Code", pairingCode), event -> {
+            AccessibilityNodeInfo submit = namedNode(automation.getRootInActiveWindow(), "Add environment");
+            return submit != null && submit.isEnabled();
+          }, 30000);
           automation.executeAndWaitForEvent(() -> tapText(automation, "Add environment"), event -> {
             String view = screenText(automation.getRootInActiveWindow());
             if (dismissSystemDialog(automation, view)) return false;
