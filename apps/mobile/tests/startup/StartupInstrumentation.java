@@ -228,11 +228,18 @@ public final class StartupInstrumentation extends Instrumentation {
     return null;
   }
 
-  private AccessibilityNodeInfo actionNode(AccessibilityNodeInfo node, AccessibilityNodeInfo.AccessibilityAction action) {
+  private int actionId(AccessibilityNodeInfo node, String label) {
+    for (AccessibilityNodeInfo.AccessibilityAction action : node.getActionList()) {
+      if (label.contentEquals(action.getLabel() == null ? "" : action.getLabel())) return action.getId();
+    }
+    return 0;
+  }
+
+  private AccessibilityNodeInfo actionNode(AccessibilityNodeInfo node, String label) {
     if (node == null) return null;
-    if (node.getActionList().contains(action)) return node;
+    if (actionId(node, label) != 0) return node;
     for (int index = 0; index < node.getChildCount(); index++) {
-      AccessibilityNodeInfo found = actionNode(node.getChild(index), action);
+      AccessibilityNodeInfo found = actionNode(node.getChild(index), label);
       if (found != null) return found;
     }
     return null;
@@ -273,12 +280,11 @@ public final class StartupInstrumentation extends Instrumentation {
     String currentLabel = "Large tile: " + current;
     scrollTo(automation, currentLabel);
     awaitScreen(automation, () -> tapText(automation, currentLabel), "Empty");
-    AccessibilityNodeInfo sheet = actionNode(automation.getRootInActiveWindow(),
-        AccessibilityNodeInfo.AccessibilityAction.ACTION_EXPAND);
+    AccessibilityNodeInfo sheet = actionNode(automation.getRootInActiveWindow(), "Expand");
     if (sheet != null) {
       Rect title = textBounds(automation.getRootInActiveWindow(), "Large tile");
       automation.executeAndWaitForEvent(() -> {
-        if (!sheet.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_EXPAND.getId())) {
+        if (!sheet.performAction(actionId(sheet, "Expand"))) {
           throw new AssertionError("Cannot expand the tile picker");
         }
       }, event -> {
@@ -623,7 +629,7 @@ public final class StartupInstrumentation extends Instrumentation {
           .resolveActivity(getContext().getPackageManager());
       if (systemSettings == null) throw new AssertionError("Test system has no screen saver settings");
       try {
-        shell(automation, "pm disable-user --user 0 " + systemSettings.flattenToString());
+        shell(automation, "pm disable-user --user 0 '" + systemSettings.flattenToString() + "'");
         automation.injectInputEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_HOME), true);
         automation.injectInputEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_HOME), true);
         shell(automation, "am force-stop com.t3tools.t3code.dream");
@@ -638,7 +644,7 @@ public final class StartupInstrumentation extends Instrumentation {
         capture(automation, "unsupported-settings");
         result.putString("capabilityGate", "PASS");
       } finally {
-        shell(automation, "pm enable --user 0 " + systemSettings.flattenToString());
+        shell(automation, "pm enable --user 0 '" + systemSettings.flattenToString() + "'");
       }
       passed = true;
     } catch (Throwable error) {
