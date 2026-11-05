@@ -203,6 +203,61 @@ public final class StartupInstrumentation extends Instrumentation {
     return null;
   }
 
+  private Rect phraseBounds(AccessibilityNodeInfo node, String phrase) {
+    if (node == null) return null;
+    if ((node.getText() != null && has(node.getText().toString(), phrase))
+        || (node.getContentDescription() != null && has(node.getContentDescription().toString(), phrase))) {
+      Rect bounds = new Rect();
+      node.getBoundsInScreen(bounds);
+      return bounds;
+    }
+    for (int index = 0; index < node.getChildCount(); index++) {
+      Rect found = phraseBounds(node.getChild(index), phrase);
+      if (found != null) return found;
+    }
+    return null;
+  }
+
+  private void awaitPopulatedLayout(UiAutomation automation, String style, boolean landscape,
+      boolean compactStatus, boolean tokensPrimary, int failedCount) throws Exception {
+    automation.executeAndWaitForEvent(() -> startDream(automation), event -> {
+      AccessibilityNodeInfo root = automation.getRootInActiveWindow();
+      String view = screenText(root);
+      if (dismissSystemDialog(automation, view) || !dreamVisible(root)) return false;
+      Rect bounds = new Rect();
+      root.getBoundsInScreen(bounds);
+      if ((bounds.width() > bounds.height()) != landscape || textBounds(root, "Live") == null
+          || (failedCount > 0 && !has(view, failedCount + " failed"))) return false;
+      if ("Clock".equals(style)) {
+        String clockValue = clockText(automation);
+        if (clockValue.isEmpty()) return false;
+        Rect clock = textBounds(root, clockValue);
+        Rect summary = phraseBounds(root, "need you");
+        return clock != null && !clock.isEmpty() && bounds.contains(clock)
+            && summary != null && !summary.isEmpty() && bounds.contains(summary);
+      }
+      Rect status = compactStatus ? phraseBounds(root, "Session status.")
+          : textBounds(root, "Session status");
+      if (status == null || status.isEmpty() || !bounds.contains(status)) return false;
+      if (!compactStatus) {
+        for (String label : new String[] { "Working", "Requests", "Questions", "Finished" }) {
+          Rect item = textBounds(root, label);
+          if (item == null || item.isEmpty() || !bounds.contains(item)) return false;
+        }
+      }
+      if (!"Dashboard".equals(style)) return true;
+      for (String label : new String[] { "300K", "$0.96", "36%", "2/2" }) {
+        Rect item = textBounds(root, label);
+        if (item == null || item.isEmpty() || !bounds.contains(item)) return false;
+      }
+      Rect tokens = textBounds(root, "Tokens · 24h");
+      if (tokens == null || tokens.isEmpty() || !bounds.contains(tokens)) return false;
+      return landscape
+          ? tokensPrimary ? tokens.right < status.left : status.right < tokens.left
+          : tokensPrimary ? tokens.bottom < status.top : status.bottom < tokens.top;
+    }, 30000);
+  }
+
   private void tapText(UiAutomation automation, String text) {
     AccessibilityNodeInfo root = automation.getRootInActiveWindow();
     AccessibilityNodeInfo control = namedNode(root, text);
@@ -663,7 +718,7 @@ public final class StartupInstrumentation extends Instrumentation {
               result.putString("stage", "small status font " + fontScale + " rotation " + rotation);
               automation.setRotation(rotation == 0
                   ? UiAutomation.ROTATION_FREEZE_0 : UiAutomation.ROTATION_FREEZE_90);
-              awaitDream(automation, "Tokens · 24h");
+              awaitPopulatedLayout(automation, "Dashboard", rotation == 1, true, true, failedCount);
               capture(automation, "small-status-font-" + fontScale.replace('.', '-')
                   + (rotation == 0 ? "-portrait" : "-landscape"));
               exitDreamToSettings(automation, settings);
@@ -679,7 +734,8 @@ public final class StartupInstrumentation extends Instrumentation {
               result.putString("stage", "large text " + style + " rotation " + rotation);
               automation.setRotation(rotation == 0
                   ? UiAutomation.ROTATION_FREEZE_0 : UiAutomation.ROTATION_FREEZE_90);
-              awaitDream(automation, "Clock".equals(style) ? "working" : "Session status");
+              awaitPopulatedLayout(automation, style, rotation == 1,
+                  "Dashboard".equals(style) || ("Focus".equals(style) && rotation == 1), false, failedCount);
               capture(automation, "large-font-" + style.toLowerCase(java.util.Locale.ROOT)
                   + (rotation == 0 ? "-portrait" : "-landscape"));
               exitDreamToSettings(automation, settings);
