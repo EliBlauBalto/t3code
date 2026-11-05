@@ -101,13 +101,17 @@ describe("subscription widget snapshots", () => {
     expect(JSON.stringify(snapshot)).not.toContain("example.com");
     const config = input.get(EnvironmentId.make("env"))!.serverConfig;
     config.providers = [provider()];
+    const widgetBeforeSourceFailure = buildSubscriptionUsageSnapshot(input, deepLink);
     const failedSource = {
       ...config.usageLimitSources[0]!,
       error: "Fixture source could not enumerate accounts",
       accounts: [],
     };
     config.usageLimitSources = [failedSource];
-    expect(buildSubscriptionUsageSnapshot(input, deepLink).providers[0]).toMatchObject({
+    expect.soft(buildSubscriptionUsageSnapshot(input, deepLink)).toEqual(widgetBeforeSourceFailure);
+    expect(
+      buildSubscriptionUsageSnapshot(input, deepLink, Infinity, new Set(input.keys())).providers[0],
+    ).toMatchObject({
       windows: [{ remaining: 60 }],
       partial: true,
     });
@@ -154,8 +158,11 @@ describe("subscription widget snapshots", () => {
       },
     });
     const local = input.get(EnvironmentId.make("env"))!.serverConfig;
+    const dreamScope = new Set(input.keys());
     local.providers = [...local.providers, failed];
-    expect(buildSubscriptionUsageSnapshot(input, deepLink).providers[0]).toMatchObject({
+    expect(
+      buildSubscriptionUsageSnapshot(input, deepLink, Infinity, dreamScope).providers[0],
+    ).toMatchObject({
       windows: [{ remaining: 20 }],
       partial: true,
     });
@@ -163,10 +170,12 @@ describe("subscription widget snapshots", () => {
       provider(),
       provider({ ...failed, availability: "unavailable", usageLimits: limits }),
     ];
-    expect.soft(buildSubscriptionUsageSnapshot(input, deepLink).providers[0]).toMatchObject({
-      windows: [{ remaining: 20 }],
-      partial: true,
-    });
+    expect
+      .soft(buildSubscriptionUsageSnapshot(input, deepLink, Infinity, dreamScope).providers[0])
+      .toMatchObject({
+        windows: [{ remaining: 20 }],
+        partial: true,
+      });
     local.providers = [
       provider({ usageLimits: { checkedAt, windows: [{ ...window, usedPercent: 20 }] } }),
     ];

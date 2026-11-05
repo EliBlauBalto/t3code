@@ -133,9 +133,6 @@ export function buildSubscriptionUsageSnapshot(
     includedEnvironmentIds === null
       ? allPresentations
       : new Map([...allPresentations].filter(([id]) => includedEnvironmentIds.has(id)));
-  const sourceUnavailable = [...presentations.values()].some((presentation) =>
-    presentation.serverConfig?.usageLimitSources?.some((source) => Boolean(source.error)),
-  );
   const configuredDrivers = new Set(
     [...presentations.values()].flatMap((presentation) =>
       (presentation.serverConfig?.providers ?? [])
@@ -148,6 +145,16 @@ export function buildSubscriptionUsageSnapshot(
         )
         .map((provider) => provider.driver),
     ),
+  );
+  const snapshot = subscriptionUsageProps(
+    collectLimitAccounts(presentations),
+    0,
+    configuredDrivers,
+    maxWindowsPerProvider,
+  );
+  if (includedEnvironmentIds === null) return { ...snapshot, url };
+  const sourceUnavailable = [...presentations.values()].some((presentation) =>
+    presentation.serverConfig?.usageLimitSources?.some((source) => Boolean(source.error)),
   );
   const unavailable = new Set<string>(
     [...presentations.values()]
@@ -168,12 +175,6 @@ export function buildSubscriptionUsageSnapshot(
             limitsNotice(report.usageLimits) !== null),
       )
       .map((report) => (report.driver === "codex" ? "Codex" : "Claude")),
-  );
-  const snapshot = subscriptionUsageProps(
-    collectLimitAccounts(presentations),
-    0,
-    configuredDrivers,
-    maxWindowsPerProvider,
   );
   return {
     ...snapshot,
