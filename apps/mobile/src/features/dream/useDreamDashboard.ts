@@ -60,10 +60,12 @@ export function useDreamSources() {
       )
       .map(([id]) => id),
   ]);
-  const ready = sources.ready && AsyncResult.isSuccess(stored) && !stored.waiting;
+  const initialized = sources.ready && AsyncResult.isSuccess(stored);
+  const ready = initialized && !stored.waiting;
   return {
     ...sources,
     ready,
+    initialized,
     preferences,
     selected,
     environmentIds,
@@ -81,19 +83,22 @@ export function useDreamSources() {
   };
 }
 
+const usageWindow = (now: Date) =>
+  makeWindow(1, new Date(Math.floor(now.getTime() / 300_000) * 300_000), "hour");
+
 export function useDreamClock() {
   const [clock, setClock] = useState(() => ({
     now: new Date(),
-    window: makeWindow(1, new Date(), "hour"),
+    window: usageWindow(new Date()),
   }));
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- advances the screen saver clock and existing rolling usage query once a minute
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- advances the clock each minute; usage windows are five-minute snapshots
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     const schedule = () => {
       timer = setTimeout(
         () => {
           const now = new Date();
-          setClock({ now, window: makeWindow(1, now, "hour") });
+          setClock({ now, window: usageWindow(now) });
           schedule();
         },
         60_000 - (Date.now() % 60_000),

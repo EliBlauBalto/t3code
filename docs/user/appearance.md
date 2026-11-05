@@ -21,6 +21,18 @@ Android uses **Material You Layout** by default unless you have turned it off in
 It changes shapes, spacing, and controls independently
 of the selected theme.
 
+## Android desk dashboard
+
+On Android devices with screen saver support, open **Settings → Desk dashboard**.
+Choose Dashboard for session counts and metrics, Focus for one tile, or Clock for the
+time and a short session summary. The full-screen preview can show portrait and
+landscape layouts.
+
+Choose **Set as screen saver**, select **T3 Code**, and enable it while charging.
+Touching the screen saver exits. **Customize** in Android settings returns to the
+dashboard settings. Session counts follow your project and session choices; usage
+and quota retain their machine-wide scope. Usage refreshes every five minutes.
+
 ## Composer context
 
 Git-backed projects show branch and worktree controls below the composer while you create a thread.

@@ -74,8 +74,14 @@ describe("installSubscriptionUsageRefresh", () => {
     fixture.appState = "background";
     fixture.refreshed = [];
     registry.set(catalogAtom, { isReady: true });
-    registry.set(presentationsAtom, new Map([[connected, { connection: { phase: "connected" } }]]));
-    const dispose = installSubscriptionUsageRefresh(() => true);
+    registry.set(
+      presentationsAtom,
+      new Map([
+        [connected, { connection: { phase: "connected" } }],
+        [connecting, { connection: { phase: "connected" } }],
+      ]),
+    );
+    const dispose = installSubscriptionUsageRefresh(() => true, new Set([connected]));
     try {
       expect(fixture.refreshed).toEqual([connected]);
     } finally {

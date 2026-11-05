@@ -47,6 +47,41 @@ export interface DreamPreferences {
   readonly pixelShift: boolean;
 }
 const DEFAULT_DREAM_SLOTS: readonly DreamKpi[] = ["status", "tokens", "cost", "limits", "working"];
+export function dreamVisibleSlots(preferences: Pick<DreamPreferences, "layout" | "slots">) {
+  return preferences.layout === "clock"
+    ? []
+    : preferences.layout === "focus"
+      ? preferences.slots.slice(0, 1)
+      : preferences.slots;
+}
+
+export function resolveDreamQuota(
+  providers: readonly {
+    readonly name: string;
+    readonly expiresAt: number;
+    readonly partial?: boolean;
+    readonly windows: readonly { readonly remaining: number; readonly label: string }[];
+  }[],
+  now: number,
+) {
+  const tightest = providers
+    .flatMap((provider) =>
+      provider.expiresAt > now
+        ? provider.windows.map((window) => ({ name: provider.name, ...window }))
+        : [],
+    )
+    .sort((a, b) => a.remaining - b.remaining)[0];
+  return tightest
+    ? {
+        ...tightest,
+        partial: providers.some(
+          (provider) =>
+            provider.partial === true || provider.expiresAt <= now || provider.windows.length === 0,
+        ),
+      }
+    : null;
+}
+
 export function dreamClockFontSize(width: number, height: number) {
   return Math.max(48, Math.min(width * 0.31, height * 0.32, 240));
 }

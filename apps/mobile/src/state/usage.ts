@@ -34,11 +34,16 @@ export interface EnvironmentUsageStatus {
 
 const usageByWindowAtom = Atom.family((windowKey: string) =>
   Atom.make((get): readonly EnvironmentUsageStatus[] => {
-    const input = JSON.parse(windowKey) as UsageSummaryInput;
+    const { input, environmentIds } = JSON.parse(windowKey) as {
+      input: UsageSummaryInput;
+      environmentIds: readonly EnvironmentId[] | null;
+    };
+    const requested = environmentIds === null ? null : new Set(environmentIds);
     const presentations = get(environmentPresentations.presentationsAtom);
 
     const statuses: EnvironmentUsageStatus[] = [];
     for (const [environmentId, presentation] of presentations) {
+      if (requested !== null && !requested.has(environmentId)) continue;
       const sessionResult = get(environmentSession.sessionStateAtom(environmentId));
       const access = resolveUsageAccess({
         connectionPhase: presentation.connection.phase,
@@ -98,16 +103,24 @@ export interface UsageView {
 export function useUsage(
   input: UsageSummaryInput,
   selectedEnvironmentIds: ReadonlySet<EnvironmentId> | null = null,
+  { querySelectedOnly = false }: { readonly querySelectedOnly?: boolean } = {},
 ): UsageView {
+  const selectionKey =
+    querySelectedOnly && selectedEnvironmentIds !== null
+      ? JSON.stringify([...selectedEnvironmentIds].sort())
+      : "null";
   const windowKey = useMemo(
     () =>
       JSON.stringify({
-        sinceDay: input.sinceDay,
-        untilDay: input.untilDay,
-        timeZone: input.timeZone,
-        resolution: input.resolution,
-        sinceTime: input.sinceTime,
-        untilTime: input.untilTime,
+        input: {
+          sinceDay: input.sinceDay,
+          untilDay: input.untilDay,
+          timeZone: input.timeZone,
+          resolution: input.resolution,
+          sinceTime: input.sinceTime,
+          untilTime: input.untilTime,
+        },
+        environmentIds: JSON.parse(selectionKey),
       }),
     [
       input.sinceDay,
@@ -116,6 +129,7 @@ export function useUsage(
       input.resolution,
       input.sinceTime,
       input.untilTime,
+      selectionKey,
     ],
   );
   const atom = usageByWindowAtom(windowKey);
@@ -142,7 +156,7 @@ export function useUsage(
               readEnvironmentScope(environment.environmentId, AuthDiagnosticsReadScope),
           )
           .map(({ environmentId }) => environmentId),
-        input: nextInput ?? (JSON.parse(windowKey) as UsageSummaryInput),
+        input: nextInput ?? (JSON.parse(windowKey) as { input: UsageSummaryInput }).input,
       }),
     [selectedEnvironments, windowKey],
   );

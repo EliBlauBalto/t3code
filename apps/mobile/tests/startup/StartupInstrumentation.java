@@ -298,6 +298,11 @@ public final class StartupInstrumentation extends Instrumentation {
       result.putString("customize", "PASS");
       awaitScreen(automation, () -> tapText(automation, "Full-screen preview"), "Connect your first machine");
       capture(automation, "in-app-preview");
+      automation.executeAndWaitForEvent(() -> tapText(automation, "Landscape preview"), event -> {
+        AccessibilityNodeInfo option = namedNode(automation.getRootInActiveWindow(), "Landscape preview");
+        return option != null && option.isChecked();
+      }, 30000);
+      capture(automation, "in-app-preview-landscape");
       awaitScreen(automation, () -> tapText(automation, "Close preview"), "Full-screen preview");
       result.putString("preview", "PASS");
       result.putString("stage", "Focus style selection");
@@ -336,7 +341,6 @@ public final class StartupInstrumentation extends Instrumentation {
       awaitScreen(automation, () -> tapText(automation, "Large tile: Cost · 24h"), "Empty");
       awaitScreen(automation, () -> tapText(automation, "Session status"), "Large tile: Session status");
       result.putString("tileSelection", "PASS");
-      awaitScreen(automation, () -> getContext().startActivity(settings), "Dashboard style");
       selectStyle(automation, "Clock");
       result.putString("stage", "cold Customize and saved style");
       automation.executeAndWaitForEvent(() -> {

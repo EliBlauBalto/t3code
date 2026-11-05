@@ -1,4 +1,5 @@
 import { RegistryContext } from "@effect/atom-react";
+import type { EnvironmentId } from "@t3tools/contracts";
 import { useEffect, useState } from "react";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { requireOptionalNativeModule } from "expo";
@@ -10,15 +11,17 @@ import {
   DREAM_KPIS,
   dreamClockFontSize,
   dreamTileScale,
+  dreamVisibleSlots,
+  resolveDreamQuota,
   resolveDreamConnection,
   summarizeDreamThreads,
   type DreamKpi,
   type DreamPalette,
 } from "../../lib/dreamDashboard";
 import { themeColorWithAlpha } from "../../lib/mobileTheme";
+import { resolveDreamUsage, type DreamUsageReading } from "../../lib/dreamUsage";
 import {
   AppearancePreferencesProvider,
-  installAppearanceRuntime,
   useAppearancePreferences,
 } from "../settings/appearance/AppearancePreferencesProvider";
 import { buildSubscriptionUsageSnapshot } from "../../widgets/subscriptionUsageSnapshot";
@@ -29,6 +32,7 @@ import { useAppStartupReady } from "../../AppStartup";
 import "../../../global.css";
 
 const native = requireOptionalNativeModule<{ is24HourFormat(): boolean }>("T3NativeControls");
+const EMPTY_ENVIRONMENTS: ReadonlySet<EnvironmentId> = new Set();
 
 const AMBER = {
   "--color-screen": "#110c06",
@@ -89,22 +93,35 @@ export function DreamDashboard() {
   const source = useDreamSources();
   const { isReady } = useAppearancePreferences();
   useAppStartupReady(isReady);
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- owns appearance and quota refresh while the standalone dream surface is mounted
+  const quotaScope =
+    source.initialized &&
+    source.environmentIds.size > 0 &&
+    dreamVisibleSlots(source.preferences).includes("limits")
+      ? JSON.stringify([...source.environmentIds].sort())
+      : null;
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- refreshes selected-machine quota only while its native dream tile is visible
   useEffect(() => {
-    const releaseAppearance = installAppearanceRuntime();
-    const releaseUsage = installSubscriptionUsageRefresh(() => true);
-    return () => {
-      releaseUsage();
-      releaseAppearance();
-    };
-  }, []);
+    if (quotaScope === null) return;
+    return installSubscriptionUsageRefresh(
+      () => true,
+      new Set(JSON.parse(quotaScope) as EnvironmentId[]),
+    );
+  }, [quotaScope]);
   return <DreamDisplay source={source} />;
 }
 
 export function DreamDisplay({ source }: { readonly source: ReturnType<typeof useDreamSources> }) {
   const { preferences } = source;
   const { now, window } = useDreamClock();
-  const usage = useUsage(window, source.environmentIds);
+  const visibleSlots = dreamVisibleSlots(preferences);
+  const usageIds =
+    source.initialized && visibleSlots.some((slot) => slot === "tokens" || slot === "cost")
+      ? source.environmentIds
+      : EMPTY_ENVIRONMENTS;
+  const usage = useUsage(window, usageIds, { querySelectedOnly: true });
+  const [cachedUsage, setCachedUsage] = useState<DreamUsageReading | null>(null);
+  const reading = resolveDreamUsage(cachedUsage, usageIds, usage);
+  if (reading !== cachedUsage) setCachedUsage(reading);
   const { themeVariablesByAppearance } = useAppearancePreferences();
   const colors = resolvePalette(preferences.palette, themeVariablesByAppearance.dark);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -127,30 +144,14 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
   });
   const unavailable = connectionState !== "live" && connectionState !== "partial";
   const partial = connectionState === "partial";
-  const usageReady =
-    source.environmentIds.size > 0 &&
-    usage.selectedEnvironments.length === source.environmentIds.size &&
-    usage.merged.contractMismatches.length === 0 &&
-    usage.selectedEnvironments.every(
-      (entry) =>
-        entry.isConnected &&
-        entry.summary !== null &&
-        !entry.isPending &&
-        entry.summary.sources.length > 0 &&
-        entry.summary.sources.every((item) => item.status === "ok" && item.refreshing !== true),
-    );
-  const quotas = buildSubscriptionUsageSnapshot(
-    new Map([...source.presentations].filter(([id]) => source.environmentIds.has(id))),
-    "",
-    Infinity,
-  );
-  const tightest = quotas.providers
-    .flatMap((provider) =>
-      provider.expiresAt > now.getTime()
-        ? provider.windows.map((limit) => ({ name: provider.name, ...limit }))
-        : [],
-    )
-    .sort((a, b) => a.remaining - b.remaining)[0];
+  const quotas = visibleSlots.includes("limits")
+    ? buildSubscriptionUsageSnapshot(
+        new Map([...source.presentations].filter(([id]) => source.environmentIds.has(id))),
+        "",
+        Infinity,
+      )
+    : null;
+  const tightest = resolveDreamQuota(quotas?.providers ?? [], now.getTime());
   const number = (value: number) => (unavailable ? "–" : `${partial ? "~" : ""}${value}`);
   const quotaRemaining =
     tightest && !unavailable && !partial ? Math.max(0, Math.min(100, tightest.remaining)) : null;
@@ -158,28 +159,37 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
     switch (kpi) {
       case "tokens":
         return {
-          value: usageReady ? formatTokens(usage.merged.totalTokens) : "–",
-          detail: usageReady ? "Selected machines" : "Usage unavailable",
+          value: reading ? formatTokens(reading.tokens) : "–",
+          detail: !reading
+            ? "Usage unavailable"
+            : reading.refreshing
+              ? "Updating · selected machines"
+              : "Selected machines",
           alert: false,
         };
       case "cost":
         return {
           value:
-            usageReady && usage.merged.costQuality.unpricedShare === 0
-              ? formatUsd(usage.merged.costUsd)
+            reading?.costUsd !== null && reading?.costUsd !== undefined
+              ? formatUsd(reading.costUsd)
               : "–",
           detail:
-            !usageReady || usage.merged.costQuality.unpricedShare > 0
+            !reading || reading.costUsd === null
               ? "Cost unavailable"
-              : usage.merged.costQuality.modelPricedShare > 0
-                ? "Estimated · selected machines"
-                : "Reported · selected machines",
+              : reading.refreshing
+                ? "Updating · selected machines"
+                : reading.estimated
+                  ? "Estimated · selected machines"
+                  : "Reported · selected machines",
           alert: false,
         };
       case "limits":
         return {
-          value: quotaRemaining === null ? "–" : `${quotaRemaining}%`,
-          detail: tightest ? `${tightest.name} · ${tightest.label}` : "No quota available",
+          value:
+            quotaRemaining === null ? "–" : `${tightest?.partial ? "~" : ""}${quotaRemaining}%`,
+          detail: tightest
+            ? `${tightest.partial ? "Partial · " : ""}${tightest.name} · ${tightest.label}`
+            : "No quota available",
           alert: quotaRemaining !== null && quotaRemaining <= 10,
         };
       case "connections":
@@ -251,7 +261,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
             adjustsFontSizeToFit
             style={[
               styles.label,
-              { color: colors.secondary, fontSize: (large ? 13 : 11) * tileScale },
+              { color: colors.secondary, fontSize: Math.max(11, (large ? 13 : 11) * tileScale) },
             ]}
           >
             {DREAM_KPIS[kpi]}
@@ -295,7 +305,10 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
                 <Text
                   numberOfLines={1}
                   adjustsFontSizeToFit
-                  style={{ color: colors.secondary, fontSize: (large ? 14 : 11) * tileScale }}
+                  style={{
+                    color: colors.secondary,
+                    fontSize: Math.max(11, (large ? 14 : 11) * tileScale),
+                  }}
                 >
                   {DREAM_KPIS[key]}
                 </Text>
@@ -350,7 +363,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
               adjustsFontSizeToFit
               style={{
                 color: colors.secondary,
-                fontSize: (large ? 13 : 11) * tileScale,
+                fontSize: Math.max(10, (large ? 13 : 11) * tileScale),
                 textAlign: focused ? "center" : "left",
               }}
             >
@@ -464,7 +477,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
                 adjustsFontSizeToFit
                 style={{
                   color: colors.secondary,
-                  fontSize: 15 * scale,
+                  fontSize: Math.max(12, 15 * scale),
                   textAlign: clockOnly ? "center" : "left",
                 }}
               >
@@ -481,7 +494,11 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
               <View style={[styles.dot, { backgroundColor: connection.color }]} />
               <Text
                 numberOfLines={1}
-                style={{ color: colors.secondary, fontSize: 12 * scale, flexShrink: 1 }}
+                style={{
+                  color: colors.secondary,
+                  fontSize: Math.max(11, 12 * scale),
+                  flexShrink: 1,
+                }}
               >
                 {connection.text}
               </Text>
@@ -528,7 +545,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
             style={{
               color: colors.secondary,
               textAlign: "center",
-              fontSize: 14 * scale,
+              fontSize: Math.max(12, 14 * scale),
               paddingVertical: gap,
               borderTopWidth: 1,
               borderTopColor: themeColorWithAlpha(colors.foreground, 0.1),

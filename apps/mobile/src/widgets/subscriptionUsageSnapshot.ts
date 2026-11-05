@@ -1,6 +1,7 @@
 import {
   collectLimitAccounts,
   collectLimitPools,
+  limitsNotice,
   type LimitAccount,
   type LimitPresentations,
 } from "@t3tools/shared/usageLimits";
@@ -17,6 +18,7 @@ export interface SubscriptionUsageSnapshot {
     windows: Array<{ kind?: string; label: string; remaining: number; reset: string }>;
     expiresAt: number;
     totalWindows: number;
+    partial?: boolean;
   }>;
 }
 
@@ -138,12 +140,34 @@ export function buildSubscriptionUsageSnapshot(
         .map((provider) => provider.driver),
     ),
   );
+  const unavailable = new Set<string>(
+    [...presentations.values()]
+      .flatMap((presentation) => [
+        ...(presentation.serverConfig?.providers ?? []).filter(
+          (provider) => provider.enabled && provider.installed,
+        ),
+        ...(presentation.serverConfig?.usageLimitSources ?? []).flatMap(
+          (source) => source.accounts,
+        ),
+      ])
+      .filter(
+        (report) =>
+          (report.driver === "codex" || report.driver === "claudeAgent") &&
+          report.usageLimits?.unavailable?.reason !== "unsupported" &&
+          (!report.usageLimits || limitsNotice(report.usageLimits) !== null),
+      )
+      .map((report) => (report.driver === "codex" ? "Codex" : "Claude")),
+  );
+  const snapshot = subscriptionUsageProps(
+    collectLimitAccounts(presentations),
+    0,
+    configuredDrivers,
+    maxWindowsPerProvider,
+  );
   return {
-    ...subscriptionUsageProps(
-      collectLimitAccounts(presentations),
-      0,
-      configuredDrivers,
-      maxWindowsPerProvider,
+    ...snapshot,
+    providers: snapshot.providers.map((provider) =>
+      unavailable.has(provider.name) ? { ...provider, partial: true } : provider,
     ),
     url,
   };
