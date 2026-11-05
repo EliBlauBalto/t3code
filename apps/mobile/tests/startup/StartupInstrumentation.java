@@ -21,9 +21,11 @@ import java.io.InputStreamReader;
 
 public final class StartupInstrumentation extends Instrumentation {
   private org.json.JSONArray fixture;
+  private String appId = "com.t3tools.t3code.dream";
+  private String appScheme = "t3code-dream";
   private ComponentName dreamSettings() throws Exception {
     PackageManager manager = getContext().getPackageManager();
-    ServiceInfo service = manager.getServiceInfo(new ComponentName("com.t3tools.t3code.dream",
+    ServiceInfo service = manager.getServiceInfo(new ComponentName(appId,
         "expo.modules.t3nativecontrols.T3DreamService"), PackageManager.GET_META_DATA);
     try (XmlResourceParser metadata = service.loadXmlMetaData(manager, "android.service.dream")) {
       if (metadata == null) throw new AssertionError("Screen saver metadata missing");
@@ -46,6 +48,11 @@ public final class StartupInstrumentation extends Instrumentation {
   public void onCreate(Bundle arguments) {
     super.onCreate(arguments);
     try {
+      appId = arguments.getString("appId", appId);
+      if (!"com.t3tools.t3code.dream".equals(appId) && !"com.t3tools.t3code".equals(appId)) {
+        throw new IllegalArgumentException("Unexpected Dream test package");
+      }
+      appScheme = "com.t3tools.t3code".equals(appId) ? "t3code" : "t3code-dream";
       fixture = new org.json.JSONArray(new String(java.util.Base64.getDecoder().decode(
           arguments.getString("fixture", "W10=")), java.nio.charset.StandardCharsets.UTF_8));
     } catch (Exception error) {
@@ -338,7 +345,7 @@ public final class StartupInstrumentation extends Instrumentation {
 
   private boolean dreamVisible(AccessibilityNodeInfo root) {
     if (root == null || root.getPackageName() == null
-        || !"com.t3tools.t3code.dream".contentEquals(root.getPackageName())) return false;
+        || !appId.contentEquals(root.getPackageName())) return false;
     for (AccessibilityNodeInfo.AccessibilityAction action : root.getActionList()) {
       if (action.getId() == AccessibilityNodeInfo.ACTION_CLICK
           && action.getLabel() != null && "dismiss".equalsIgnoreCase(action.getLabel().toString())) return true;
@@ -388,12 +395,13 @@ public final class StartupInstrumentation extends Instrumentation {
     Bundle result = new Bundle();
     UiAutomation automation = getUiAutomation();
     boolean passed = false;
+    result.putString("appId", appId);
     try {
       result.putString("stage", "screen saver picker metadata");
       ComponentName customize = dreamSettings();
       result.putString("pickerMetadata", "PASS");
       Intent launch = getContext().getPackageManager()
-          .getLaunchIntentForPackage("com.t3tools.t3code.dream");
+          .getLaunchIntentForPackage(appId);
       if (launch == null) throw new AssertionError("Installed Dream launcher was not found");
       launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
       result.putString("stage", "main startup");
@@ -469,7 +477,7 @@ public final class StartupInstrumentation extends Instrumentation {
         automation.injectInputEvent(new android.view.KeyEvent(
             android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_HOME), true);
       }, event -> launcherVisible(automation), 30000);
-      shell(automation, "am force-stop com.t3tools.t3code.dream");
+      shell(automation, "am force-stop " + appId);
       awaitScreen(automation, () -> getContext().startActivity(settings), "Clock style");
       AccessibilityNodeInfo clock = namedNode(automation.getRootInActiveWindow(), "Clock style");
       if (clock == null || !clock.isChecked()) throw new AssertionError("Saved Clock style was lost");
@@ -501,7 +509,7 @@ public final class StartupInstrumentation extends Instrumentation {
       result.putString("stage", "second Dream exit");
       awaitDreamExit(automation, "Add environment");
       result.putString("stage", "cold Dream start");
-      String previousPid = shell(automation, "pidof com.t3tools.t3code.dream");
+      String previousPid = shell(automation, "pidof " + appId);
       automation.executeAndWaitForEvent(
           () -> {
             automation.injectInputEvent(new android.view.KeyEvent(
@@ -509,9 +517,9 @@ public final class StartupInstrumentation extends Instrumentation {
             automation.injectInputEvent(new android.view.KeyEvent(
                 android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_HOME), true);
           }, event -> launcherVisible(automation), 30000);
-      shell(automation, "am force-stop com.t3tools.t3code.dream");
+      shell(automation, "am force-stop " + appId);
       awaitDream(automation, "Connect your first machine");
-      String dreamPid = shell(automation, "pidof com.t3tools.t3code.dream");
+      String dreamPid = shell(automation, "pidof " + appId);
       if (previousPid.isEmpty() || dreamPid.isEmpty() || previousPid.equals(dreamPid)) {
         throw new AssertionError("Cold Dream did not start a new app process");
       }
@@ -536,12 +544,18 @@ public final class StartupInstrumentation extends Instrumentation {
       capture(automation, "system-customize");
       result.putString("systemCustomize", "PASS");
       if (fixture.length() > 0) {
+        int expectedFailed = 0;
+        for (int index = 0; index < fixture.length(); index++) {
+          expectedFailed += fixture.getJSONObject(index).optInt("expectedFailed", 0);
+        }
+        final int failedCount = expectedFailed;
+        result.putString("expectedFailed", Integer.toString(failedCount));
         result.putString("stage", "pair isolated showcase environments");
         for (int index = 0; index < fixture.length(); index++) {
           result.putString("stage", "pair isolated showcase environment " + (index + 1));
           Intent pair = new Intent(Intent.ACTION_VIEW,
-              android.net.Uri.parse("t3code-dream://connections/new"))
-              .setPackage("com.t3tools.t3code.dream").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+              android.net.Uri.parse(appScheme + "://connections/new"))
+              .setPackage(appId).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
           awaitScreen(automation, () -> getContext().startActivity(pair), "Address");
           enterText(automation, "Address", fixture.getJSONObject(index).getString("address"));
           String pairingCode = fixture.getJSONObject(index).getString("code");
@@ -602,6 +616,10 @@ public final class StartupInstrumentation extends Instrumentation {
             if (has(display, "Connect your first machine") || has(display, "Waiting for a connection")) {
               throw new AssertionError("Paired screen saver lost live data");
             }
+            if (failedCount > 0 && !"Clock".equals(style) && !has(display, failedCount + " failed")) {
+              throw new AssertionError("Synthetic failed session missing from the Dream display");
+            }
+            if (failedCount > 0) result.putString("nonzeroFailures", "PASS");
             capture(automation, "live-" + style.toLowerCase(java.util.Locale.ROOT) + "-" + viewport[0]);
             exitDreamToSettings(automation, settings);
           }
@@ -637,7 +655,7 @@ public final class StartupInstrumentation extends Instrumentation {
         selectLargeTile(automation, "Session status", "Tokens · 24h");
         String previousFontScale = shell(automation, "settings get system font_scale");
         try {
-          for (String fontScale : new String[] { "1.0", "1.5" }) {
+          for (String fontScale : new String[] { "1.0", "1.5", "2.0" }) {
             shell(automation, "settings put system font_scale " + fontScale);
             for (int rotation = 0; rotation < 2; rotation++) {
               result.putString("stage", "small status font " + fontScale + " rotation " + rotation);
@@ -661,14 +679,14 @@ public final class StartupInstrumentation extends Instrumentation {
         }
         selectLargeTile(automation, "Tokens · 24h", "Session status");
         result.putString("stage", "cold populated landscape layout");
-        String populatedPid = shell(automation, "pidof com.t3tools.t3code.dream");
+        String populatedPid = shell(automation, "pidof " + appId);
         automation.executeAndWaitForEvent(() -> {
           automation.injectInputEvent(new android.view.KeyEvent(
               android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_HOME), true);
           automation.injectInputEvent(new android.view.KeyEvent(
               android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_HOME), true);
         }, event -> launcherVisible(automation), 30000);
-        shell(automation, "am force-stop com.t3tools.t3code.dream");
+        shell(automation, "am force-stop " + appId);
         // Give the cold process a landscape display without relying on launcher rotation policy.
         shell(automation, "wm size 1920x1080");
         shell(automation, "wm density 480");
@@ -692,7 +710,7 @@ public final class StartupInstrumentation extends Instrumentation {
               && !has(coldText, "Connect your first machine")
               && !has(coldText, "Waiting for a connection");
         }, 30000);
-        String populatedColdPid = shell(automation, "pidof com.t3tools.t3code.dream");
+        String populatedColdPid = shell(automation, "pidof " + appId);
         if (populatedPid.isEmpty() || populatedColdPid.isEmpty() || populatedPid.equals(populatedColdPid)) {
           throw new AssertionError("Populated Dream did not cold-start a new app process");
         }
@@ -719,11 +737,11 @@ public final class StartupInstrumentation extends Instrumentation {
         if (remainingSettings != null) throw new AssertionError("Screen saver settings still resolve after fixture disable");
         automation.injectInputEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_HOME), true);
         automation.injectInputEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_HOME), true);
-        shell(automation, "am force-stop com.t3tools.t3code.dream");
+        shell(automation, "am force-stop " + appId);
         awaitScreen(automation, () -> getContext().startActivity(settings), "Screen savers aren’t available");
         capture(automation, "unsupported-direct-link");
-        Intent index = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("t3code-dream://settings"))
-            .setPackage("com.t3tools.t3code.dream").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        Intent index = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(appScheme + "://settings"))
+            .setPackage(appId).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         awaitScreen(automation, () -> getContext().startActivity(index), "Appearance");
         if (has(screenText(automation.getRootInActiveWindow()), "Desk dashboard")) {
           throw new AssertionError("Unsupported screen saver is still in Settings");

@@ -3,10 +3,11 @@ import * as NodeChildProcess from "node:child_process";
 import * as NodeFSP from "node:fs/promises";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
+import * as NodeSqlite from "node:sqlite";
 import * as NodeURL from "node:url";
 
 import { startShowcaseEnvironments, issuePairingCredential } from "./mobile-showcase.ts";
-import { SHOWCASE_ENVIRONMENTS } from "./mobile-showcase-environment.ts";
+import { SHOWCASE_ENVIRONMENTS, SHOWCASE_THREADS } from "./mobile-showcase-environment.ts";
 
 const owned: NodeChildProcess.ChildProcess[] = [];
 const waitForExit = (child: NodeChildProcess.ChildProcess) =>
@@ -81,10 +82,106 @@ try {
     (child) => owned.push(child),
     SHOWCASE_ENVIRONMENTS.slice(0, 2),
   );
+  const failedFixture = process.env.T3_DREAM_FAILED_FIXTURE === "1";
+  if (failedFixture) {
+    const fixtureThreadId = SHOWCASE_THREADS[0].id;
+    // This projection belongs only to this disposable fixture; no provider turn is executed.
+    using database = new NodeSqlite.DatabaseSync(
+      NodePath.join(environments[0]!.baseDir, "userdata", "statev2.sqlite"),
+    );
+    database.exec("PRAGMA busy_timeout = 5000");
+    const thread = database
+      .prepare(`
+      SELECT provider_instance_id, payload_json FROM orchestration_v2_projection_threads
+      WHERE thread_id = ? AND archived_at IS NULL AND deleted_at IS NULL
+    `)
+      .get(fixtureThreadId);
+    const message = database
+      .prepare(`
+      SELECT message_id FROM orchestration_v2_projection_messages
+      WHERE thread_id = ? AND role = 'user' ORDER BY created_at DESC LIMIT 1
+    `)
+      .get(fixtureThreadId);
+    if (
+      !thread ||
+      typeof thread.payload_json !== "string" ||
+      !message ||
+      typeof message.message_id !== "string" ||
+      typeof thread.provider_instance_id !== "string"
+    ) {
+      throw new Error("Disposable Dream fixture is missing its imported V2 thread or message");
+    }
+    const ordinal = database
+      .prepare(`
+      SELECT COALESCE(MAX(ordinal), 0) + 1 AS ordinal FROM orchestration_v2_projection_runs
+      WHERE thread_id = ?
+    `)
+      .get(fixtureThreadId)?.ordinal;
+    if (typeof ordinal !== "number") throw new Error("Dream fixture run ordinal missing");
+    const payload = JSON.parse(thread.payload_json) as { modelSelection: unknown };
+    const now = new Date().toISOString();
+    const run = {
+      id: "dream-fixture-failed-run",
+      threadId: fixtureThreadId,
+      ordinal,
+      providerInstanceId: thread.provider_instance_id,
+      modelSelection: payload.modelSelection,
+      providerThreadId: null,
+      userMessageId: message.message_id,
+      rootNodeId: null,
+      activeAttemptId: null,
+      status: "failed",
+      requestedAt: now,
+      startedAt: now,
+      completedAt: now,
+      checkpointId: null,
+      contextHandoffId: null,
+    };
+    database
+      .prepare(`
+      INSERT INTO orchestration_v2_projection_runs
+      (run_id, thread_id, ordinal, provider, provider_instance_id, provider_thread_id,
+       status, requested_at, completed_at, payload_json)
+      VALUES (?, ?, ?, ?, ?, NULL, 'failed', ?, ?, ?)
+    `)
+      .run(
+        run.id,
+        run.threadId,
+        ordinal,
+        run.providerInstanceId,
+        run.providerInstanceId,
+        now,
+        now,
+        JSON.stringify(run),
+      );
+    const stored = database
+      .prepare(`
+      SELECT run_id, thread_id, status FROM orchestration_v2_projection_runs WHERE run_id = ?
+    `)
+      .get(run.id);
+    if (stored?.status !== "failed") throw new Error("Dream fixture failed-state seed missing");
+    const output = process.argv[3];
+    if (!output) throw new Error("Dream fixture evidence directory is required");
+    await NodeFSP.mkdir(output, { recursive: true });
+    await NodeFSP.writeFile(
+      NodePath.join(output, "fixture-seed.json"),
+      JSON.stringify(
+        {
+          synthetic: true,
+          providerTurnsExecuted: 0,
+          expectedFailed: 1,
+          stored,
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+  }
   const fixture = await Promise.all(
-    environments.map(async (environment) => ({
+    environments.map(async (environment, index) => ({
       address: `http://10.0.2.2:${environment.port}`,
       code: await issuePairingCredential(environment.baseDir),
+      expectedFailed: failedFixture && index === 0 ? 1 : 0,
     })),
   );
   const runner = NodeChildProcess.spawn(

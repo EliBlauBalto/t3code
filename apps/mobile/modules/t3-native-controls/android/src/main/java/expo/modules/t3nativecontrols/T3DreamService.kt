@@ -4,6 +4,7 @@ import android.content.res.Configuration
 import android.os.Handler
 import android.os.Looper
 import android.service.dreams.DreamService
+import android.util.Log
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
 import com.facebook.react.ReactInstanceEventListener
@@ -113,8 +114,10 @@ class T3DreamService : DreamService() {
   private fun startTimerLease(context: ReactContext) {
     if (!dreaming || (taskId != null && taskContext?.get() === context)) return
     stopTimerLease()
-    renderer =
-      UIManagerHelper.getUIManager(context, UIManagerType.FABRIC) as? FabricUIManager ?: return
+    renderer = UIManagerHelper.getUIManager(context, UIManagerType.FABRIC) as? FabricUIManager ?: run {
+      Log.w("T3DreamService", "RN 0.88 FabricUIManager is unavailable for the screen saver")
+      return
+    }
     taskContext = WeakReference(context)
     context.addLifecycleEventListener(lifecycleListener)
     resumeRenderer()
@@ -126,7 +129,12 @@ class T3DreamService : DreamService() {
 
   private fun resumeRenderer() {
     // RN 0.88: keep Fabric and its dispatcher active without resuming ReactHost/AppState.
-    renderer?.onHostResume()
-    (renderer?.eventDispatcher as? LifecycleEventListener)?.onHostResume()
+    val currentRenderer = renderer ?: return
+    val dispatcher = currentRenderer.eventDispatcher as? LifecycleEventListener
+    if (dispatcher == null) {
+      Log.w("T3DreamService", "RN 0.88 Fabric dispatcher lifecycle is unavailable for the screen saver")
+    }
+    currentRenderer.onHostResume()
+    dispatcher?.onHostResume()
   }
 }

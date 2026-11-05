@@ -160,7 +160,8 @@ export function buildSubscriptionUsageSnapshot(
     [...presentations.values()]
       .flatMap((presentation) => [
         ...(presentation.serverConfig?.providers ?? []).filter(
-          (provider) => provider.enabled && provider.installed,
+          (provider) =>
+            provider.enabled && provider.installed && provider.auth.status !== "unauthenticated",
         ),
         ...(presentation.serverConfig?.usageLimitSources ?? []).flatMap(
           (source) => source.accounts,

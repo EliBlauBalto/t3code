@@ -14,6 +14,10 @@ on:
       build_run:
         description: Optional build run containing dream-candidate-apk; overrides release
         default: ""
+      failed_fixture:
+        description: Include a synthetic failed session in the disposable server
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -55,6 +59,7 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         env:
           T3_STARTUP_OBSERVE_FIXTURE: ${{ inputs.observe_fixture && '1' || '0' }}
+          T3_DREAM_FAILED_FIXTURE: ${{ inputs.failed_fixture && '1' || '0' }}
         with:
           api-level: 35
           target: google_apis
@@ -71,5 +76,6 @@ jobs:
           name: dream-startup-evidence
           path: |
             /tmp/dream-startup-evidence/*.txt
+            /tmp/dream-startup-evidence/*.json
             /tmp/dream-startup-evidence/capture/
           if-no-files-found: warn

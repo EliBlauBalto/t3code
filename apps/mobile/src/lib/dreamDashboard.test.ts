@@ -80,7 +80,7 @@ it("preserves empty slots and repairs invalid saved configuration without exceed
     "tokens",
     "cost",
     "limits",
-    "working",
+    "connections",
   ]);
   expect(normalizeDreamPreferences({ projects: ["a", 2], all: false }).projects).toEqual(["a"]);
 });

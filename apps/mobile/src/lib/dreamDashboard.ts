@@ -46,7 +46,13 @@ export interface DreamPreferences {
   readonly brightness: DreamBrightness;
   readonly pixelShift: boolean;
 }
-const DEFAULT_DREAM_SLOTS: readonly DreamKpi[] = ["status", "tokens", "cost", "limits", "working"];
+const DEFAULT_DREAM_SLOTS: readonly DreamKpi[] = [
+  "status",
+  "tokens",
+  "cost",
+  "limits",
+  "connections",
+];
 export function dreamVisibleSlots(preferences: Pick<DreamPreferences, "layout" | "slots">) {
   return preferences.layout === "clock"
     ? []

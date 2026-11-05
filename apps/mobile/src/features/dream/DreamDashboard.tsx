@@ -145,6 +145,10 @@ function DreamTile({
   if (kpi === "") return <View style={styles.card} />;
   const tileScale = dreamTileScale(scale, size, large, fontScale);
   const compactStatus = kpi === "status" && !large;
+  const statusKpis =
+    compactStatus && counts.failed > 0
+      ? (["working", "input", "questions", "failed"] as const)
+      : STATUS_KPIS;
   const danger = value.alert || (kpi === "status" && counts.failed > 0);
   const attention =
     kpi === "status"
@@ -222,7 +226,7 @@ function DreamTile({
             focused && styles.focusStatusGrid,
           ]}
         >
-          {STATUS_KPIS.map((key) => (
+          {statusKpis.map((key) => (
             <View
               key={key}
               style={[
@@ -238,11 +242,13 @@ function DreamTile({
                   styles.number,
                   {
                     color:
-                      (key === "input" || key === "questions") && needsYou(key)
-                        ? colors.accent
-                        : counts[key] === 0
-                          ? colors.secondary
-                          : colors.foreground,
+                      key === "failed" && counts.failed > 0
+                        ? colors.alert
+                        : (key === "input" || key === "questions") && needsYou(key)
+                          ? colors.accent
+                          : counts[key] === 0
+                            ? colors.secondary
+                            : colors.foreground,
                     fontSize: compactStatus
                       ? Math.max(11, 20 * tileScale)
                       : (large ? 60 : 30) * tileScale,
@@ -452,7 +458,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
   const [size, setSize] = useState({ width: 0, height: 0 });
   const { fontScale } = useWindowDimensions();
   const wide = size.width >= 600 && size.width > size.height;
-  const scale = Math.max(0.65, Math.min(1.35, Math.min(size.width / 400, size.height / 680)));
+  const scale = Math.max(0.65, Math.min(2, Math.min(size.width / 400, size.height / 680)));
   const gap = Math.round(16 * scale);
   const clockOnly = preferences.layout === "clock";
   const focused = preferences.layout === "focus";
@@ -593,14 +599,17 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
   }[connectionState];
   const minute = now.getMinutes();
   const shift = preferences.pixelShift
-    ? [{ translateX: (minute % 2) * 2 }, { translateY: (Math.floor(minute / 2) % 2) * 2 }]
+    ? [
+        { translateX: minute % 2 === 0 ? -8 : 8 },
+        { translateY: Math.floor(minute / 2) % 2 === 0 ? -8 : 8 },
+      ]
     : [];
   return (
     <View
       onLayout={({ nativeEvent }) => setSize(nativeEvent.layout)}
       style={[styles.root, { backgroundColor: colors.screen, padding: Math.round(28 * scale) }]}
     >
-      <View style={[styles.content, { gap: gap * 1.5, maxHeight: clockOnly ? undefined : 860 }]}>
+      <View style={[styles.content, { gap: gap * 1.5 }]}>
         <View style={[styles.header, clockOnly && styles.clockHeader, { transform: shift }]}>
           <DreamClockFace
             preferences={preferences}
@@ -673,7 +682,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
           >
             {unavailable
               ? connection.title
-              : `${number(counts.working)} working · ${number(counts.input + counts.questions)} need you · ${number(counts.finished)} finished`}
+              : `${number(counts.working)} working · ${number(counts.input + counts.questions)} need you · ${number(counts.finished)} finished${counts.failed > 0 ? ` · ${number(counts.failed)} failed` : ""}`}
           </Text>
         ) : focused ? (
           <View style={[styles.focus, { transform: shift }]}>

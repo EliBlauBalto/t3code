@@ -1,7 +1,15 @@
 name: Personal Android Dream APK
+run-name: ${{ inputs.upstream_patch != '' && 'Exact upstream Dream verification' || 'Personal Dream verification' }}
 
 on:
   workflow_dispatch:
+    inputs:
+      upstream_patch:
+        description: Optional gzip/base64 patch from the pinned upstream base
+        default: ""
+      upstream_tree:
+        description: Required exact Git tree for the optional upstream patch
+        default: ""
 
 permissions:
   contents: read
@@ -12,7 +20,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
-      APP_VARIANT: dream
+      APP_VARIANT: ${{ inputs.upstream_patch != '' && 'production' || 'dream' }}
       EXPO_NO_TELEMETRY: "1"
       NODE_OPTIONS: --max-old-space-size=4096
     steps:
@@ -20,6 +28,21 @@ jobs:
         with:
           fetch-depth: 2
       - uses: voidzero-dev/setup-vp@250f29ce396baf5e8f24498e17c0dfdebabc26eb
+      - name: Reconstruct exact upstream candidate
+        if: inputs.upstream_patch != ''
+        env:
+          T3_DREAM_UPSTREAM_PATCH: ${{ inputs.upstream_patch }}
+          T3_DREAM_UPSTREAM_TREE: ${{ inputs.upstream_tree }}
+        run: node scripts/dream-prepare-upstream.ts
+      - name: Retain exact upstream source proof
+        if: inputs.upstream_patch != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dream-upstream-source
+          path: |
+            ../dream-upstream-source.json
+            ../dream-upstream.patch
+          if-no-files-found: error
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -27,17 +50,25 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - run: vp i --frozen-lockfile
       - run: vp run check:changed HEAD^
+      - name: Install exact upstream dependencies
+        if: inputs.upstream_patch != ''
+        working-directory: ../dream-upstream-candidate
+        run: vp i --frozen-lockfile
+      - name: Check exact upstream feature source
+        if: inputs.upstream_patch != ''
+        working-directory: ../dream-upstream-candidate
+        run: vp run check:changed a21d788752695764028e6d26ba924f3963e05806
       - name: Generate Android project
-        working-directory: apps/mobile
+        working-directory: ${{ inputs.upstream_patch != '' && '../dream-upstream-candidate/apps/mobile' || 'apps/mobile' }}
         run: vp exec expo prebuild --platform android --no-install
       - name: Limit intermediate native debug output on the standard runner
-        working-directory: apps/mobile/android
+        working-directory: ${{ inputs.upstream_patch != '' && '../dream-upstream-candidate/apps/mobile/android' || 'apps/mobile/android' }}
         run: |
           cat >> app/build.gradle <<'GRADLE'
           android.defaultConfig.externalNativeBuild.cmake.arguments "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=-O2 -g0 -DNDEBUG", "-DCMAKE_C_FLAGS_RELWITHDEBINFO=-O2 -g0 -DNDEBUG"
           GRADLE
       - name: Build standalone ARM64 APK
-        working-directory: apps/mobile/android
+        working-directory: ${{ inputs.upstream_patch != '' && '../dream-upstream-candidate/apps/mobile/android' || 'apps/mobile/android' }}
         run: |
           ./gradlew :t3-native-controls:compileReleaseKotlin -PreactNativeArchitectures=arm64-v8a --max-workers=2 --build-cache
           ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a --max-workers=2 --build-cache
@@ -45,25 +76,28 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: dream-candidate-apk
-          path: apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          path: ${{ inputs.upstream_patch != '' && '../dream-upstream-candidate/apps/mobile/android/app/build/outputs/apk/release/app-release.apk' || 'apps/mobile/android/app/build/outputs/apk/release/app-release.apk' }}
           if-no-files-found: error
       - name: Retain release JavaScript source maps for startup diagnosis
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: dream-startup-source-maps
           path: |
-            apps/mobile/android/app/build/generated/sourcemaps/react/release/
-            apps/mobile/android/app/build/intermediates/sourcemaps/react/release/
+            ${{ inputs.upstream_patch != '' && '../dream-upstream-candidate/apps/mobile' || 'apps/mobile' }}/android/app/build/generated/sourcemaps/react/release/
+            ${{ inputs.upstream_patch != '' && '../dream-upstream-candidate/apps/mobile' || 'apps/mobile' }}/android/app/build/intermediates/sourcemaps/react/release/
           if-no-files-found: error
       - name: Verify APK identity and native screen saver registration
+        env:
+          APK: ${{ inputs.upstream_patch != '' && '../dream-upstream-candidate/apps/mobile/android/app/build/outputs/apk/release/app-release.apk' || 'apps/mobile/android/app/build/outputs/apk/release/app-release.apk' }}
+          EXPECTED_PACKAGE: ${{ inputs.upstream_patch != '' && 'com.t3tools.t3code' || 'com.t3tools.t3code.dream' }}
         run: |
           python3 - <<'PY'
           import os, subprocess, xml.etree.ElementTree as ET
           analyzer = os.path.join(os.environ["ANDROID_HOME"], "cmdline-tools/latest/bin/apkanalyzer")
-          apk = "apps/mobile/android/app/build/outputs/apk/release/app-release.apk"
+          apk = os.environ["APK"]
           root = ET.fromstring(subprocess.check_output([analyzer, "manifest", "print", apk], text=True))
           android = "{http://schemas.android.com/apk/res/android}"
-          assert root.get("package") == "com.t3tools.t3code.dream"
+          assert root.get("package") == os.environ["EXPECTED_PACKAGE"]
           service = next(item for item in root.findall("application/service") if item.get(android + "name") == "expo.modules.t3nativecontrols.T3DreamService")
           assert service.get(android + "permission") == "android.permission.BIND_DREAM_SERVICE"
           assert service.get(android + "exported") == "true"
@@ -95,6 +129,9 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - name: Verify installed release startup and native Dream
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          T3_DREAM_APP_ID: ${{ inputs.upstream_patch != '' && 'com.t3tools.t3code' || 'com.t3tools.t3code.dream' }}
+          T3_DREAM_FAILED_FIXTURE: "1"
         with:
           api-level: 35
           target: google_apis
@@ -111,5 +148,6 @@ jobs:
           name: dream-installed-verification
           path: |
             /tmp/dream-startup-evidence/*.txt
+            /tmp/dream-startup-evidence/*.json
             /tmp/dream-startup-evidence/capture/
           if-no-files-found: warn

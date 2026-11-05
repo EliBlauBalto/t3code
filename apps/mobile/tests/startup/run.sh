@@ -2,6 +2,11 @@
 set -euo pipefail
 
 apk="$(realpath "$1")"
+app_id="${T3_DREAM_APP_ID:-com.t3tools.t3code.dream}"
+case "$app_id" in
+  com.t3tools.t3code|com.t3tools.t3code.dream) ;;
+  *) echo "Unexpected Dream test package" >&2; exit 1 ;;
+esac
 directory="$(cd "$(dirname "$0")" && pwd)"
 output="$(realpath -m "$2")"
 mkdir -p "$output/classes" "$output/dex"
@@ -14,6 +19,7 @@ cat > "$output/AndroidManifest.xml" <<'XML'
   <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="35" />
   <queries>
     <package android:name="com.t3tools.t3code.dream" />
+    <package android:name="com.t3tools.t3code" />
     <intent><action android:name="android.settings.DREAM_SETTINGS" /></intent>
   </queries>
   <application android:label="Release startup test" />
@@ -58,7 +64,7 @@ adb install --no-incremental "$output/test.apk"
 if [[ "$(adb shell getprop ro.dalvik.vm.native.bridge)" == *libndk_translation* ]]; then
   adb root
   adb wait-for-device
-  installed_apk="$(adb shell pm path com.t3tools.t3code.dream | tr -d '\r' | sed 's/^package://')"
+  installed_apk="$(adb shell pm path "$app_id" | tr -d '\r' | sed 's/^package://')"
   native_directory="${installed_apk%/base.apk}/lib/arm64"
   unzip -j "$apk" 'lib/arm64-v8a/*.so' -d "$output/native-libraries" > "$output/native-extraction.txt"
   adb shell mkdir -p "$native_directory"
@@ -66,10 +72,10 @@ if [[ "$(adb shell getprop ro.dalvik.vm.native.bridge)" == *libndk_translation* 
   adb shell restorecon -R "$native_directory"
 fi
 adb shell settings put secure screensaver_enabled 1
-adb shell settings put secure screensaver_components com.t3tools.t3code.dream/expo.modules.t3nativecontrols.T3DreamService
+adb shell settings put secure screensaver_components "$app_id/expo.modules.t3nativecontrols.T3DreamService"
 adb logcat -c
 fixture="$(printf '%s' "${T3_DREAM_FIXTURE:-[]}" | base64 -w0)"
-adb shell am instrument -w -e fixture "$fixture" com.t3tools.startuptest/.StartupInstrumentation | tee "$output/result.txt"
+adb shell am instrument -w -e fixture "$fixture" -e appId "$app_id" com.t3tools.startuptest/.StartupInstrumentation | tee "$output/result.txt"
 adb logcat -d -v threadtime > "$output/logcat.txt"
 adb pull /sdcard/Android/data/com.t3tools.startuptest/files/ "$output/capture" || true
 grep -q 'startup=PASS' "$output/result.txt"
