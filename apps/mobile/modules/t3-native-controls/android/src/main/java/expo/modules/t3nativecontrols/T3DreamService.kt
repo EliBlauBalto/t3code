@@ -70,6 +70,11 @@ class T3DreamService : DreamService() {
   override fun onConfigurationChanged(newConfig: Configuration) {
     super.onConfigurationChanged(newConfig)
     reactHost?.onConfigurationChanged(this)
+    // RN refreshes its JS font-scale cache on activity resume; Dreams do not resume one.
+    val context = reactHost?.currentReactContext ?: return
+    if (context.hasActiveReactInstance()) {
+      (context.getNativeModule("DeviceInfo") as? LifecycleEventListener)?.onHostResume()
+    }
   }
 
   override fun onDreamingStopped() {
@@ -114,10 +119,11 @@ class T3DreamService : DreamService() {
   private fun startTimerLease(context: ReactContext) {
     if (!dreaming || (taskId != null && taskContext?.get() === context)) return
     stopTimerLease()
-    renderer = UIManagerHelper.getUIManager(context, UIManagerType.FABRIC) as? FabricUIManager ?: run {
-      Log.w("T3DreamService", "RN 0.88 FabricUIManager is unavailable for the screen saver")
-      return
-    }
+    renderer =
+      UIManagerHelper.getUIManager(context, UIManagerType.FABRIC) as? FabricUIManager ?: run {
+        Log.w("T3DreamService", "RN 0.88 FabricUIManager is unavailable for the screen saver")
+        return
+      }
     taskContext = WeakReference(context)
     context.addLifecycleEventListener(lifecycleListener)
     resumeRenderer()
@@ -132,7 +138,10 @@ class T3DreamService : DreamService() {
     val currentRenderer = renderer ?: return
     val dispatcher = currentRenderer.eventDispatcher as? LifecycleEventListener
     if (dispatcher == null) {
-      Log.w("T3DreamService", "RN 0.88 Fabric dispatcher lifecycle is unavailable for the screen saver")
+      Log.w(
+        "T3DreamService",
+        "RN 0.88 Fabric dispatcher lifecycle is unavailable for the screen saver"
+      )
     }
     currentRenderer.onHostResume()
     dispatcher?.onHostResume()

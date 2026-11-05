@@ -172,6 +172,16 @@ public final class StartupInstrumentation extends Instrumentation {
     }
   }
 
+  private void captureRuntimeStats(UiAutomation automation, String name) throws Exception {
+    for (String kind : new String[] { "gfxinfo", "meminfo" }) {
+      try (FileOutputStream file = new FileOutputStream(
+          new File(getContext().getExternalFilesDir(null), name + "-" + kind + ".txt"))) {
+        file.write(shell(automation, "dumpsys " + kind + " " + appId)
+            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+      }
+    }
+  }
+
   private String clockText(UiAutomation automation) {
     java.util.regex.Matcher clock = java.util.regex.Pattern.compile("\\b\\d{1,2}:\\d{2}\\b")
         .matcher(screenText(automation.getRootInActiveWindow()));
@@ -695,6 +705,8 @@ public final class StartupInstrumentation extends Instrumentation {
         if (firstClock.isEmpty()) throw new AssertionError("Clock text is missing");
         result.putString("clockInitial", firstClock);
         capture(automation, "live-clock-before-advancement");
+        shell(automation, "dumpsys gfxinfo " + appId + " reset");
+        captureRuntimeStats(automation, "clock-runtime-before");
         for (int tick = 0; tick < 3; tick++) {
           final String previousClock = clockText(automation);
           result.putString("stage", "background Clock tick " + (tick + 1));
@@ -704,6 +716,7 @@ public final class StartupInstrumentation extends Instrumentation {
           }, 75000);
         }
         result.putString("clockFinal", clockText(automation));
+        captureRuntimeStats(automation, "clock-runtime-after");
         capture(automation, "live-clock-after-advancement");
         result.putString("clockAdvancement", "PASS");
         exitDreamToSettings(automation, settings);
@@ -792,6 +805,7 @@ public final class StartupInstrumentation extends Instrumentation {
         result.putString("coldPopulatedLayout", "PASS");
         result.putString("stage", "font scale changes during an active Dream");
         String activeFontScale = shell(automation, "settings get system font_scale");
+        String activeDreamPid = shell(automation, "pidof " + appId);
         try {
           automation.executeAndWaitForEvent(() -> shell(automation, "settings put system font_scale 2.0"), event -> {
             AccessibilityNodeInfo activeRoot = automation.getRootInActiveWindow();
@@ -802,6 +816,10 @@ public final class StartupInstrumentation extends Instrumentation {
             return compact != null && !compact.isEmpty() && displayBounds.contains(compact)
                 && textBounds(activeRoot, "300K") != null;
           }, 30000);
+          if (activeDreamPid.isEmpty() || !activeDreamPid.equals(shell(automation, "pidof " + appId))) {
+            throw new AssertionError("Font-scale update restarted the Dream process");
+          }
+          result.putString("activeFontScaleSetting", shell(automation, "settings get system font_scale"));
           capture(automation, "active-font-scale-landscape");
           result.putString("activeFontScale", "PASS");
         } finally {

@@ -100,14 +100,14 @@ export function dreamClockFontSize(width: number, height: number) {
 export function dreamTileScale(
   scale: number,
   size: { readonly width: number; readonly height: number } | undefined,
-  large: boolean,
+  statusGrid: boolean,
   fontScale: number,
 ) {
   return size && size.width > 0 && size.height > 0
     ? Math.min(
         scale,
-        size.height / ((large ? 310 : 150) * Math.max(1, fontScale)),
-        size.width / (large ? 260 : 155),
+        size.height / ((statusGrid ? 310 : 150) * Math.max(1, fontScale)),
+        size.width / (statusGrid ? 260 : 155),
       )
     : scale;
 }
