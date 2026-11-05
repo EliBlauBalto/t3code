@@ -132,6 +132,21 @@ describe("subscription widget snapshots", () => {
     const snapshot = buildSubscriptionUsageSnapshot(input, deepLink);
     expect(snapshot.providers[0]?.detail).toBe("Subscription remaining");
     expect(snapshot.providers[0]?.windows[0]?.remaining).toBe(20);
+    const failed = provider({
+      instanceId: ProviderInstanceId.make("other-account"),
+      auth: { status: "authenticated", email: "other@example.com" },
+      usageLimits: {
+        checkedAt,
+        windows: [],
+        unavailable: { reason: "probeFailed", message: "Fixture probe failed" },
+      },
+    });
+    const local = input.get(EnvironmentId.make("env"))!.serverConfig;
+    local.providers = [...local.providers, failed];
+    expect(buildSubscriptionUsageSnapshot(input, deepLink).providers[0]).toMatchObject({
+      windows: [{ remaining: 20 }],
+      partial: true,
+    });
   });
 });
 

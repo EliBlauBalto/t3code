@@ -10,7 +10,33 @@ import {
   resolveDreamConnection,
   dreamClockFontSize,
   dreamTileScale,
+  resolveDreamQuota,
 } from "./dreamDashboard";
+
+it("qualifies available quota when another supported provider is missing or expired", () => {
+  const codex = { name: "Codex", expiresAt: 200, windows: [{ label: "5 hours", remaining: 80 }] };
+  const claude = { name: "Claude", expiresAt: 200, windows: [{ label: "Weekly", remaining: 30 }] };
+  expect(resolveDreamQuota([codex, claude], 100)).toMatchObject({
+    name: "Claude",
+    remaining: 30,
+    partial: false,
+  });
+  expect(resolveDreamQuota([{ ...codex, partial: true }], 100)).toMatchObject({
+    remaining: 80,
+    partial: true,
+  });
+  for (const missing of [
+    { ...claude, expiresAt: 0, windows: [] },
+    { ...claude, expiresAt: 90 },
+  ]) {
+    expect(resolveDreamQuota([codex, missing], 100)).toMatchObject({
+      name: "Codex",
+      remaining: 80,
+      partial: true,
+    });
+  }
+  expect(resolveDreamQuota([{ ...codex, expiresAt: 0 }], 100)).toBeNull();
+});
 
 it("keeps native text sizes positive before layout and during zero-size surface transitions", () => {
   for (const [width, height] of [

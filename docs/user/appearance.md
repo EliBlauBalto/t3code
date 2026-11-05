@@ -25,13 +25,13 @@ of the selected theme.
 
 On Android devices with screen saver support, open **Settings → Desk dashboard**.
 Choose Dashboard for session counts and metrics, Focus for one tile, or Clock for the
-time and a short session summary. The preview updates as you change settings; use
-the full-screen preview to check the result in either orientation.
+time and a short session summary. The full-screen preview can show portrait and
+landscape layouts.
 
 Choose **Set as screen saver**, select **T3 Code**, and enable it while charging.
 Touching the screen saver exits. **Customize** in Android settings returns to the
 dashboard settings. Session counts follow your project and session choices; usage
-and quota retain their machine-wide scope.
+and quota retain their machine-wide scope. Usage refreshes every five minutes.
 
 ## Composer context
 
