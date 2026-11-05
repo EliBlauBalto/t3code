@@ -152,7 +152,7 @@ public final class StartupInstrumentation extends Instrumentation {
   }
 
   private void capture(UiAutomation automation, String name) throws Exception {
-    automation.waitForIdle(100, 30000);
+    automation.waitForIdle(1000, 30000);
     File directory = getContext().getExternalFilesDir(null);
     String text = screenText(automation.getRootInActiveWindow());
     try (FileOutputStream file = new FileOutputStream(new File(directory, name + ".txt"))) {
@@ -676,7 +676,7 @@ public final class StartupInstrumentation extends Instrumentation {
                   && (bounds.width() > bounds.height()) == expectedLandscape
                   && liveStatus != null && !liveStatus.isEmpty()
                   && (!"Dashboard".equals(style)
-                      || (has(view, "300K") && has(view, "$0.96") && has(view, "36%")));
+                       || (has(view, "300K") && has(view, "$0.96") && has(view, "36%") && has(view, "2/2")));
             }, 30000);
             if ("Dashboard".equals(style)) result.putString("populatedMetrics", "PASS");
             String display = screenText(automation.getRootInActiveWindow());
