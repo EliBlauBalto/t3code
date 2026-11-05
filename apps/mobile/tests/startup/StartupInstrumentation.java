@@ -91,7 +91,8 @@ public final class StartupInstrumentation extends Instrumentation {
   private int systemGuides = 0;
 
   private static boolean has(String text, String expected) {
-    return text.toLowerCase(java.util.Locale.ROOT).contains(expected.toLowerCase(java.util.Locale.ROOT));
+    return text.replace('\u00a0', ' ').toLowerCase(java.util.Locale.ROOT)
+        .contains(expected.replace('\u00a0', ' ').toLowerCase(java.util.Locale.ROOT));
   }
 
   // The emulator's own launcher can stall on a slow runner and cover the app with a system dialog.

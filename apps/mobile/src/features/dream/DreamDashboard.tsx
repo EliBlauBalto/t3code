@@ -383,14 +383,12 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
         styles.root,
         {
           backgroundColor: colors.screen,
-          padding: Math.max(16, Math.round((28 * scale) / textSpacing)),
+          padding:
+            Math.max(16, Math.round((28 * scale) / textSpacing)) + (preferences.pixelShift ? 8 : 0),
         },
       ]}
     >
-      <View
-        key={`${size.width}:${size.height}:${fontScale}`}
-        style={[styles.content, { gap: gap * 1.5 }]}
-      >
+      <View style={[styles.content, { gap: gap * 1.5, opacity: bounds ? 1 : 0 }]}>
         <View style={[styles.header, clockOnly && styles.clockHeader, { transform: shift }]}>
           <DreamClockFace
             preferences={preferences}
@@ -465,10 +463,11 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
               connection.title
             ) : (
               <>
-                {number(counts.working)} working · {number(counts.input + counts.questions)} need
-                you · {number(counts.finished)} finished
+                {`${number(counts.working)}\u00a0working · ${number(counts.input + counts.questions)}\u00a0need\u00a0you · ${number(counts.finished)}\u00a0finished`}
                 {counts.failed > 0 ? (
-                  <Text style={{ color: colors.alert }}> · {number(counts.failed)} failed</Text>
+                  <Text style={{ color: colors.alert }}>
+                    {` · ${number(counts.failed)}\u00a0failed`}
+                  </Text>
                 ) : null}
               </>
             )}

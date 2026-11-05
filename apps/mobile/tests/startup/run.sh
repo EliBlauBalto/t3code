@@ -14,7 +14,7 @@ sha256sum "$apk" | tee "$output/apk-sha256.txt"
 android_jar="$ANDROID_HOME/platforms/android-35/android.jar"
 build_tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
 
-cat > "$output/AndroidManifest.xml" <<'XML'
+cat > "$output/AndroidManifest.xml" <<XML
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.t3tools.startuptest">
   <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="35" />
   <queries>
@@ -24,14 +24,16 @@ cat > "$output/AndroidManifest.xml" <<'XML'
   </queries>
   <application android:label="Release startup test" />
   <instrumentation android:name="com.t3tools.startuptest.StartupInstrumentation" android:targetPackage="com.t3tools.startuptest" />
+  <instrumentation android:name="com.t3tools.startuptest.DreamReloadInstrumentation" android:targetPackage="$app_id" />
 </manifest>
 XML
 
-javac --release 8 -cp "$android_jar" -d "$output/classes" "$directory/StartupInstrumentation.java"
+javac --release 8 -cp "$android_jar" -d "$output/classes" "$directory"/*.java
 "$build_tools/d8" --lib "$android_jar" --min-api 24 --output "$output/dex" "$output"/classes/com/t3tools/startuptest/*.class
 "$build_tools/aapt2" link -I "$android_jar" --manifest "$output/AndroidManifest.xml" -o "$output/test.apk"
 (cd "$output/dex" && zip -q "$output/test.apk" classes.dex)
-keytool -genkeypair -keystore "$output/test.keystore" -storepass android -keypass android -alias test -keyalg RSA -dname CN=StartupTest -validity 1
+# Expo's publicly distributed development key matches these diagnostic APKs.
+tar -xOf "$directory/../../node_modules/expo/template.tgz" package/android/app/debug.keystore > "$output/test.keystore"
 "$build_tools/apksigner" sign --ks "$output/test.keystore" --ks-pass pass:android "$output/test.apk"
 
 if [[ "${T3_STARTUP_OBSERVE_FIXTURE:-0}" == 1 ]]; then
@@ -52,7 +54,7 @@ PY
   "$build_tools/zipalign" -P 16 -f 4 "$output/fixture-unaligned.apk" "$output/fixture.apk"
   "$build_tools/apksigner" sign --ks "$output/test.keystore" --ks-pass pass:android "$output/fixture.apk"
   apk="$output/fixture.apk"
-  echo 'TEST FIXTURE ONLY: synthetic EAS metadata, unreachable Observe endpoint, disposable signing key' | tee "$output/fixture.txt"
+  echo 'TEST FIXTURE ONLY: synthetic EAS metadata, unreachable Observe endpoint, public development signing key' | tee "$output/fixture.txt"
 fi
 
 adb shell getprop ro.product.cpu.abilist | tee "$output/abis.txt"
@@ -79,3 +81,12 @@ adb shell am instrument -w -e fixture "$fixture" -e appId "$app_id" com.t3tools.
 adb logcat -d -v threadtime > "$output/logcat.txt"
 adb pull /sdcard/Android/data/com.t3tools.startuptest/files/ "$output/capture" || true
 grep -q 'startup=PASS' "$output/result.txt"
+adb shell am instrument -w -e appId "$app_id" com.t3tools.startuptest/.DreamReloadInstrumentation | tee "$output/reload-result.txt"
+adb logcat -d -v threadtime > "$output/reload-logcat.txt"
+mkdir -p "$output/capture"
+for name in reload-before reload-after reload-clock-advanced reload-returned-to-app reload-failure; do
+  for extension in png txt; do
+    adb pull "/sdcard/Android/data/$app_id/files/$name.$extension" "$output/capture/" || true
+  done
+done
+grep -q 'reload=PASS' "$output/reload-result.txt"

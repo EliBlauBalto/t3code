@@ -19,6 +19,9 @@ class T3NativeControlsModule : Module() {
 
     Function("isDreamSupported") {
       val context = appContext.reactContext ?: return@Function false
+      // Some Android builds retain the settings activity when Dreams are disabled.
+      val supportFlag = context.resources.getIdentifier("config_dreamsSupported", "bool", "android")
+      if (supportFlag != 0 && !context.resources.getBoolean(supportFlag)) return@Function false
       Intent(Settings.ACTION_DREAM_SETTINGS).resolveActivity(context.packageManager) != null
     }
 
