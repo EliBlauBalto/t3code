@@ -251,12 +251,12 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
           value: reading ? `${reading.partial ? "~" : ""}${formatTokens(reading.tokens)}` : "–",
           detail: !reading
             ? usage.isPending
-              ? "Updating · selected machines"
+              ? "Updating · machines"
               : "Usage unavailable"
             : reading.refreshing
-              ? "Updating · selected machines"
+              ? "Updating · machines"
               : reading.partial
-                ? "Partial · selected machines"
+                ? "Partial · machines"
                 : "Selected machines",
           alert: false,
         };
@@ -264,7 +264,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
         if (!reading || reading.costUsd === null) {
           return {
             value: "–",
-            detail: usage.isPending ? "Updating · selected machines" : "Cost unavailable",
+            detail: usage.isPending ? "Updating · machines" : "Cost unavailable",
             alert: false,
           };
         }
@@ -277,7 +277,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
         }
         return {
           value: `${partialCost ? "~" : ""}${formatUsd(reading.costUsd)}`,
-          detail: `${quality} · ${reading.costPartial ? "unpriced usage" : "selected machines"}`,
+          detail: `${quality} · ${reading.costPartial ? "unpriced usage" : "machines"}`,
           alert: false,
         };
       }
@@ -387,7 +387,10 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
         },
       ]}
     >
-      <View style={[styles.content, { gap: gap * 1.5 }]}>
+      <View
+        key={`${size.width}:${size.height}:${fontScale}`}
+        style={[styles.content, { gap: gap * 1.5 }]}
+      >
         <View style={[styles.header, clockOnly && styles.clockHeader, { transform: shift }]}>
           <DreamClockFace
             preferences={preferences}

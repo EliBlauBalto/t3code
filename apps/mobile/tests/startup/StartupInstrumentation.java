@@ -260,7 +260,7 @@ public final class StartupInstrumentation extends Instrumentation {
         Rect item = textBounds(root, label);
         if (item == null || item.isEmpty() || !bounds.contains(item)) return false;
       }
-      Rect tokens = textBounds(root, "Tokens · 24h");
+      Rect tokens = textBounds(root, "24h tokens");
       if (tokens == null || tokens.isEmpty() || !bounds.contains(tokens)) return false;
       return landscape
           ? tokensPrimary ? tokens.right < status.left : status.right < tokens.left
@@ -506,7 +506,7 @@ public final class StartupInstrumentation extends Instrumentation {
       result.putString("stage", "Focus style selection");
       selectStyle(automation, "Focus");
       awaitDream(automation, "Connect your first machine");
-      if (has(screenText(automation.getRootInActiveWindow()), "Tokens · 24h")) {
+      if (has(screenText(automation.getRootInActiveWindow()), "24h tokens")) {
         throw new AssertionError("Focus style still renders the small dashboard tiles");
       }
       capture(automation, "dream-focus");
@@ -533,8 +533,8 @@ public final class StartupInstrumentation extends Instrumentation {
         throw new AssertionError("Clock still exposes unused tile settings");
       }
       selectStyle(automation, "Dashboard");
-      selectLargeTile(automation, "Session status", "Cost · 24h");
-      selectLargeTile(automation, "Cost · 24h", "Session status");
+      selectLargeTile(automation, "Session status", "24h cost");
+      selectLargeTile(automation, "24h cost", "Session status");
       result.putString("tileSelection", "PASS");
       selectStyle(automation, "Clock");
       result.putString("stage", "cold Customize and saved style");
@@ -662,14 +662,14 @@ public final class StartupInstrumentation extends Instrumentation {
               Rect bounds = new Rect();
               root.getBoundsInScreen(bounds);
               for (String label : "Dashboard".equals(style)
-                  ? new String[] { "Session status", "Tokens · 24h", "Cost · 24h", "Quota left", "Working", "Requests", "Questions", "Finished" }
+                  ? new String[] { "Session status", "24h tokens", "24h cost", "Quota left", "Working", "Requests", "Questions", "Finished" }
                   : "Focus".equals(style) ? new String[] { "Session status", "Working", "Requests", "Questions", "Finished" } : new String[0]) {
                 Rect item = textBounds(root, label);
                 if (item == null || item.isEmpty() || !bounds.contains(item)) return false;
               }
               if ("Dashboard".equals(style) && expectedLandscape) {
                 Rect status = textBounds(root, "Session status");
-                Rect tokens = textBounds(root, "Tokens · 24h");
+                Rect tokens = textBounds(root, "24h tokens");
                 if (tokens.left <= status.right) return false;
               }
               return has(view, "Clock".equals(style) ? "working" : "Session status")
@@ -722,7 +722,7 @@ public final class StartupInstrumentation extends Instrumentation {
         exitDreamToSettings(automation, settings);
         selectStyle(automation, "Dashboard");
         result.putString("stage", "small status font setup");
-        selectLargeTile(automation, "Session status", "Tokens · 24h");
+        selectLargeTile(automation, "Session status", "24h tokens");
         String previousFontScale = shell(automation, "settings get system font_scale");
         try {
           for (String fontScale : new String[] { "1.0", "1.5", "2.0" }) {
@@ -739,7 +739,7 @@ public final class StartupInstrumentation extends Instrumentation {
           }
           result.putString("smallStatusCaptures", "CAPTURED");
           result.putString("stage", "restore large tile before all-style large text captures");
-          selectLargeTile(automation, "Tokens · 24h", "Session status");
+          selectLargeTile(automation, "24h tokens", "Session status");
           for (String style : new String[] { "Dashboard", "Focus", "Clock" }) {
             result.putString("stage", "select large text style " + style);
             selectStyle(automation, style);
@@ -751,6 +751,12 @@ public final class StartupInstrumentation extends Instrumentation {
                   "Dashboard".equals(style) || ("Focus".equals(style) && rotation == 1), false, failedCount);
               capture(automation, "large-font-" + style.toLowerCase(java.util.Locale.ROOT)
                   + (rotation == 0 ? "-portrait" : "-landscape"));
+              if ("Dashboard".equals(style) && rotation == 1) {
+                shell(automation, "screenrecord --time-limit 5 --bit-rate 2000000 "
+                    + new File(getContext().getExternalFilesDir(null),
+                        "large-font-dashboard-landscape.mp4").getAbsolutePath());
+                capture(automation, "large-font-dashboard-landscape-after-recording");
+              }
               exitDreamToSettings(automation, settings);
             }
           }
@@ -786,7 +792,7 @@ public final class StartupInstrumentation extends Instrumentation {
           Rect coldScreen = new Rect();
           coldRoot.getBoundsInScreen(coldScreen);
           Rect status = textBounds(coldRoot, "Session status");
-          Rect tokens = textBounds(coldRoot, "Tokens · 24h");
+          Rect tokens = textBounds(coldRoot, "24h tokens");
           Rect liveStatus = textBounds(coldRoot, "Live");
           return coldScreen.width() > coldScreen.height()
               && status != null && tokens != null && !status.isEmpty() && !tokens.isEmpty()
