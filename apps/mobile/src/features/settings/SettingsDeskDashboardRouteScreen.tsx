@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -182,7 +181,7 @@ export function SettingsDeskDashboardRouteScreen() {
   const sessions = source.threads.filter(
     (thread) => thread.archivedAt === null && thread.deletedAt === null,
   );
-  const canOpenScreenSaver = useMemo(() => supportsDream(), []);
+  const canOpenScreenSaver = supportsDream();
   const unavailableOption = (noun: string) => (key: string) => {
     const machine = [...source.presentations].find(([id]) => key.startsWith(`${id}:`));
     const identity = machine ? key.slice(machine[0].length + 1) : key;

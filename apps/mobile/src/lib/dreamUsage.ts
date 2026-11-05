@@ -4,6 +4,7 @@ import type { UsageView } from "../state/usage";
 
 export interface DreamUsageReading {
   readonly scope: string;
+  readonly contributorIds: readonly EnvironmentId[];
   readonly tokens: number;
   readonly costUsd: number | null;
   readonly costPartial: boolean;
@@ -36,13 +37,18 @@ export function resolveDreamUsage(
               (source.refreshing !== true || entry.isPending),
           ))),
   );
-  const scopeFor = (ids: readonly EnvironmentId[]) =>
-    JSON.stringify([[...environmentIds].sort(), [...ids].sort()]);
+  const scope = JSON.stringify([...environmentIds].sort());
+  const availableIds = new Set(available.map((entry) => entry.environmentId));
+  const answered = available.filter((entry) => entry.summary !== null && !entry.isPending);
   const pending = available.some((entry) => entry.summary === null || entry.isPending);
-  if (pending && previous?.scope === scopeFor(available.map((entry) => entry.environmentId))) {
+  if (
+    pending &&
+    previous?.scope === scope &&
+    previous.contributorIds.every((id) => availableIds.has(id)) &&
+    answered.every((entry) => previous.contributorIds.includes(entry.environmentId))
+  ) {
     return previous.refreshing ? previous : { ...previous, refreshing: true };
   }
-  const answered = available.filter((entry) => entry.summary !== null && !entry.isPending);
   if (answered.length === 0) return null;
   const merged =
     answered.length === usage.selectedEnvironments.length
@@ -62,7 +68,8 @@ export function resolveDreamUsage(
           USAGE_CONTRACT_VERSION,
         );
   const next = {
-    scope: scopeFor(answered.map((entry) => entry.environmentId)),
+    scope,
+    contributorIds: answered.map((entry) => entry.environmentId),
     tokens: merged.totalTokens,
     costUsd: merged.costQuality.unpricedShare < 1 ? merged.costUsd : null,
     costPartial: merged.costQuality.unpricedShare > 0,

@@ -149,11 +149,52 @@ it("keeps the last valid reading during a refresh but clears it after access, co
       ...both,
       selectedEnvironments: [current.selectedEnvironments[0]!, { ...second, ...change }],
     };
-    expect.soft(resolveDreamUsage(full, bothIds, reduced)).toMatchObject({
+    const partial = resolveDreamUsage(full, bothIds, reduced);
+    expect.soft(partial).toMatchObject({
       tokens: 1200,
       costUsd: 3,
       partial: true,
     });
+    expect
+      .soft(
+        resolveDreamUsage(partial, bothIds, {
+          ...both,
+          selectedEnvironments: both.selectedEnvironments.map((entry) => ({
+            ...entry,
+            summary: null,
+            isPending: true,
+          })),
+        }),
+      )
+      .toMatchObject({ tokens: 1200, costUsd: 3, partial: true, refreshing: true });
+    expect
+      .soft(
+        resolveDreamUsage(partial, bothIds, {
+          ...both,
+          selectedEnvironments: [
+            { ...current.selectedEnvironments[0]!, isConnected: false },
+            { ...second, summary: null, isPending: true },
+          ],
+        }),
+      )
+      .toBeNull();
+    expect
+      .soft(
+        resolveDreamUsage(partial, bothIds, {
+          ...both,
+          selectedEnvironments: [
+            ...pendingEntries(),
+            {
+              ...second,
+              summary: {
+                ...second.summary,
+                buckets: summary.buckets.map((bucket) => ({ ...bucket, costUsd: 9 })),
+              },
+            },
+          ],
+        }),
+      )
+      .toMatchObject({ tokens: 1200, costUsd: 9, partial: true, refreshing: true });
   }
   expect
     .soft(
@@ -198,6 +239,12 @@ it("keeps the last valid reading during a refresh but clears it after access, co
       summary: null,
     })),
   };
+  expect(
+    resolveDreamUsage(reading, bothIds, {
+      ...pending,
+      selectedEnvironments: [...pending.selectedEnvironments, { ...second, summary: null }],
+    }),
+  ).toBeNull();
   expect(resolveDreamUsage(reading, ids, pending)).toMatchObject({
     tokens: 1200,
     costUsd: 3,
