@@ -668,6 +668,21 @@ public final class StartupInstrumentation extends Instrumentation {
             }
           }
           result.putString("smallStatusCaptures", "CAPTURED");
+          selectLargeTile(automation, "Tokens · 24h", "Session status");
+          for (String style : new String[] { "Dashboard", "Focus", "Clock" }) {
+            selectStyle(automation, style);
+            for (int rotation = 0; rotation < 2; rotation++) {
+              result.putString("stage", "large text " + style + " rotation " + rotation);
+              automation.setRotation(rotation == 0
+                  ? UiAutomation.ROTATION_FREEZE_0 : UiAutomation.ROTATION_FREEZE_90);
+              awaitDream(automation, "Clock".equals(style) ? "working" : "Session status");
+              capture(automation, "large-font-" + style.toLowerCase(java.util.Locale.ROOT)
+                  + (rotation == 0 ? "-portrait" : "-landscape"));
+              exitDreamToSettings(automation, settings);
+            }
+          }
+          selectStyle(automation, "Dashboard");
+          result.putString("largeFontStyles", "CAPTURED");
         } finally {
           shell(automation, "null".equals(previousFontScale)
               ? "settings delete system font_scale"
@@ -677,7 +692,6 @@ public final class StartupInstrumentation extends Instrumentation {
           automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
           restoreSettingsAfterResize(automation, settings, launch);
         }
-        selectLargeTile(automation, "Tokens · 24h", "Session status");
         result.putString("stage", "cold populated landscape layout");
         String populatedPid = shell(automation, "pidof " + appId);
         automation.executeAndWaitForEvent(() -> {

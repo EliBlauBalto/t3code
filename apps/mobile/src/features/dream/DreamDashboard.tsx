@@ -144,7 +144,9 @@ function DreamTile({
   const needsYou = (kpi: "input" | "questions") => !unavailable && counts[kpi] > 0;
   if (kpi === "") return <View style={styles.card} />;
   const tileScale = dreamTileScale(scale, size, large, fontScale);
-  const compactStatus = kpi === "status" && !large;
+  const compactStatus =
+    kpi === "status" &&
+    (!large || (fontScale > 1.5 && size !== undefined && size.height < 180 * fontScale));
   const statusKpis =
     compactStatus && counts.failed > 0
       ? (["working", "input", "questions", "failed"] as const)
@@ -204,7 +206,7 @@ function DreamTile({
               { color: colors.secondary, fontSize: Math.max(11, (large ? 13 : 11) * tileScale) },
             ]}
           >
-            {DREAM_KPIS[kpi]}
+            {kpi === "limits" && !large && fontScale > 1.5 ? "Quota left" : DREAM_KPIS[kpi]}
           </Text>
           {attention ? (
             <View
@@ -459,7 +461,8 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
   const { fontScale } = useWindowDimensions();
   const wide = size.width >= 600 && size.width > size.height;
   const scale = Math.max(0.65, Math.min(2, Math.min(size.width / 400, size.height / 680)));
-  const gap = Math.round(16 * scale);
+  const textSpacing = fontScale > 1.5 ? fontScale : 1;
+  const gap = Math.round((16 * scale) / textSpacing);
   const clockOnly = preferences.layout === "clock";
   const focused = preferences.layout === "focus";
   const live = [...source.environmentIds].filter((id) => source.live.has(id));
@@ -607,7 +610,10 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
   return (
     <View
       onLayout={({ nativeEvent }) => setSize(nativeEvent.layout)}
-      style={[styles.root, { backgroundColor: colors.screen, padding: Math.round(28 * scale) }]}
+      style={[
+        styles.root,
+        { backgroundColor: colors.screen, padding: Math.round((28 * scale) / textSpacing) },
+      ]}
     >
       <View style={[styles.content, { gap: gap * 1.5 }]}>
         <View style={[styles.header, clockOnly && styles.clockHeader, { transform: shift }]}>
@@ -696,7 +702,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
             ]}
           >
             <View style={{ flex: wide ? 1.15 : 1 }}>{card(preferences.slots[0]!, 0, true)}</View>
-            <View style={[styles.smallGrid, { flex: wide ? 1 : 0.85, gap }]}>
+            <View style={[styles.smallGrid, { flex: wide ? 1 : 0.85 * textSpacing, gap }]}>
               {[0, 1].map((row) => (
                 <View key={row} style={[styles.smallRow, { gap }]}>
                   {preferences.slots
