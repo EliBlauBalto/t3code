@@ -790,6 +790,25 @@ public final class StartupInstrumentation extends Instrumentation {
         }
         capture(automation, "live-dashboard-phone-landscape-cold");
         result.putString("coldPopulatedLayout", "PASS");
+        result.putString("stage", "font scale changes during an active Dream");
+        String activeFontScale = shell(automation, "settings get system font_scale");
+        try {
+          automation.executeAndWaitForEvent(() -> shell(automation, "settings put system font_scale 2.0"), event -> {
+            AccessibilityNodeInfo activeRoot = automation.getRootInActiveWindow();
+            if (!dreamVisible(activeRoot)) return false;
+            Rect compact = phraseBounds(activeRoot, "Session status.");
+            Rect displayBounds = new Rect();
+            activeRoot.getBoundsInScreen(displayBounds);
+            return compact != null && !compact.isEmpty() && displayBounds.contains(compact)
+                && textBounds(activeRoot, "300K") != null;
+          }, 30000);
+          capture(automation, "active-font-scale-landscape");
+          result.putString("activeFontScale", "PASS");
+        } finally {
+          shell(automation, "null".equals(activeFontScale)
+              ? "settings delete system font_scale"
+              : "settings put system font_scale " + Float.parseFloat(activeFontScale));
+        }
         automation.executeAndWaitForEvent(
             () -> exitDream(automation), event -> launcherVisible(automation), 30000);
         shell(automation, "wm size reset");
