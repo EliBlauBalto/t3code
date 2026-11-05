@@ -29,19 +29,24 @@ jobs:
           fetch-depth: 2
       - uses: voidzero-dev/setup-vp@250f29ce396baf5e8f24498e17c0dfdebabc26eb
       - name: Reconstruct exact upstream candidate
+        id: upstream
         if: inputs.upstream_patch != ''
         env:
           T3_DREAM_UPSTREAM_PATCH: ${{ inputs.upstream_patch }}
           T3_DREAM_UPSTREAM_TREE: ${{ inputs.upstream_tree }}
-        run: node scripts/dream-prepare-upstream.ts
+        run: |
+          node scripts/dream-prepare-upstream.ts
+          echo "directory=$(realpath ../dream-upstream-candidate)" >> "$GITHUB_OUTPUT"
+          echo "proof=$(realpath ../dream-upstream-source.json)" >> "$GITHUB_OUTPUT"
+          echo "patch=$(realpath ../dream-upstream.patch)" >> "$GITHUB_OUTPUT"
       - name: Retain exact upstream source proof
         if: inputs.upstream_patch != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: dream-upstream-source
           path: |
-            ../dream-upstream-source.json
-            ../dream-upstream.patch
+            ${{ steps.upstream.outputs.proof }}
+            ${{ steps.upstream.outputs.patch }}
           if-no-files-found: error
       - uses: actions/setup-java@v5
         with:
@@ -76,15 +81,15 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: dream-candidate-apk
-          path: ${{ inputs.upstream_patch != '' && '../dream-upstream-candidate/apps/mobile/android/app/build/outputs/apk/release/app-release.apk' || 'apps/mobile/android/app/build/outputs/apk/release/app-release.apk' }}
+          path: ${{ steps.upstream.outputs.directory || github.workspace }}/apps/mobile/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Retain release JavaScript source maps for startup diagnosis
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: dream-startup-source-maps
           path: |
-            ${{ inputs.upstream_patch != '' && '../dream-upstream-candidate/apps/mobile' || 'apps/mobile' }}/android/app/build/generated/sourcemaps/react/release/
-            ${{ inputs.upstream_patch != '' && '../dream-upstream-candidate/apps/mobile' || 'apps/mobile' }}/android/app/build/intermediates/sourcemaps/react/release/
+            ${{ steps.upstream.outputs.directory || github.workspace }}/apps/mobile/android/app/build/generated/sourcemaps/react/release/
+            ${{ steps.upstream.outputs.directory || github.workspace }}/apps/mobile/android/app/build/intermediates/sourcemaps/react/release/
           if-no-files-found: error
       - name: Verify APK identity and native screen saver registration
         env:
