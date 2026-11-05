@@ -265,7 +265,12 @@ public final class StartupInstrumentation extends Instrumentation {
       try {
         automation.executeAndWaitForEvent(() -> {
           if (!list.performAction(action)) throw new ScrollEnd();
-        }, event -> event.getEventType() == android.view.accessibility.AccessibilityEvent.TYPE_VIEW_SCROLLED, 30000);
+        }, event -> {
+          Rect reached = textBounds(automation.getRootInActiveWindow(), label);
+          return event.getEventType() == android.view.accessibility.AccessibilityEvent.TYPE_VIEW_SCROLLED
+              || (reached != null && !reached.isEmpty());
+        }, 30000);
+        automation.waitForIdle(100, 30000);
       } catch (ScrollEnd end) {
         direction = action == AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
             ? AccessibilityNodeInfo.ACTION_SCROLL_FORWARD : AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD;
