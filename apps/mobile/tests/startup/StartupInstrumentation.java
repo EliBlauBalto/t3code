@@ -241,6 +241,14 @@ public final class StartupInstrumentation extends Instrumentation {
 
   private static final class ScrollEnd extends RuntimeException { }
 
+  private void selectLargeTile(UiAutomation automation, String current, String next) throws Exception {
+    String currentLabel = "Large tile: " + current;
+    scrollTo(automation, currentLabel);
+    awaitScreen(automation, () -> tapText(automation, currentLabel), "Empty");
+    scrollTo(automation, next);
+    awaitScreen(automation, () -> tapText(automation, next), "Large tile: " + next);
+  }
+
   private void enterText(UiAutomation automation, String label, String value) {
     AccessibilityNodeInfo input = namedNode(automation.getRootInActiveWindow(), label);
     if (input == null) throw new AssertionError("Missing input: " + label);
@@ -305,6 +313,7 @@ public final class StartupInstrumentation extends Instrumentation {
       awaitScreen(automation, () -> getContext().startActivity(settings), "Full-screen preview");
       capture(automation, "settings-tiles");
       result.putString("customize", "PASS");
+      result.putString("stage", "in-app preview");
       awaitScreen(automation, () -> tapText(automation, "Full-screen preview"), "Connect your first machine");
       capture(automation, "in-app-preview");
       automation.executeAndWaitForEvent(() -> tapText(automation, "Landscape preview"), event -> {
@@ -344,11 +353,8 @@ public final class StartupInstrumentation extends Instrumentation {
         throw new AssertionError("Clock still exposes unused tile settings");
       }
       selectStyle(automation, "Dashboard");
-      scrollTo(automation, "Large tile: Session status");
-      awaitScreen(automation, () -> tapText(automation, "Large tile: Session status"), "Empty");
-      awaitScreen(automation, () -> tapText(automation, "Cost · 24h"), "Large tile: Cost · 24h");
-      awaitScreen(automation, () -> tapText(automation, "Large tile: Cost · 24h"), "Empty");
-      awaitScreen(automation, () -> tapText(automation, "Session status"), "Large tile: Session status");
+      selectLargeTile(automation, "Session status", "Cost · 24h");
+      selectLargeTile(automation, "Cost · 24h", "Session status");
       result.putString("tileSelection", "PASS");
       selectStyle(automation, "Clock");
       result.putString("stage", "cold Customize and saved style");
@@ -536,9 +542,7 @@ public final class StartupInstrumentation extends Instrumentation {
         result.putString("clockAdvancement", "PASS");
         awaitScreen(automation, () -> exitDream(automation), "Desk dashboard");
         selectStyle(automation, "Dashboard");
-        scrollTo(automation, "Large tile: Session status");
-        awaitScreen(automation, () -> tapText(automation, "Large tile: Session status"), "Empty");
-        awaitScreen(automation, () -> tapText(automation, "Tokens · 24h"), "Large tile: Tokens · 24h");
+        selectLargeTile(automation, "Session status", "Tokens · 24h");
         String previousFontScale = shell(automation, "settings get system font_scale");
         try {
           for (String fontScale : new String[] { "1.0", "1.5" }) {
@@ -562,9 +566,7 @@ public final class StartupInstrumentation extends Instrumentation {
           shell(automation, "wm density reset");
           automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
         }
-        scrollTo(automation, "Large tile: Tokens · 24h");
-        awaitScreen(automation, () -> tapText(automation, "Large tile: Tokens · 24h"), "Empty");
-        awaitScreen(automation, () -> tapText(automation, "Session status"), "Large tile: Session status");
+        selectLargeTile(automation, "Tokens · 24h", "Session status");
       }
       result.putString("stage", "unsupported device capability");
       ComponentName systemSettings = new Intent(android.provider.Settings.ACTION_DREAM_SETTINGS)
