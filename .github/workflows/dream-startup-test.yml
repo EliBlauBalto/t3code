@@ -18,6 +18,13 @@ on:
         description: Include a synthetic failed session in the disposable server
         type: boolean
         default: false
+      app_package:
+        description: Package of the existing APK under test
+        type: choice
+        default: com.t3tools.t3code.dream
+        options:
+          - com.t3tools.t3code.dream
+          - com.t3tools.t3code
 
 permissions:
   contents: read
@@ -60,6 +67,7 @@ jobs:
         env:
           T3_STARTUP_OBSERVE_FIXTURE: ${{ inputs.observe_fixture && '1' || '0' }}
           T3_DREAM_FAILED_FIXTURE: ${{ inputs.failed_fixture && '1' || '0' }}
+          T3_DREAM_APP_ID: ${{ inputs.app_package }}
         with:
           api-level: 35
           target: google_apis

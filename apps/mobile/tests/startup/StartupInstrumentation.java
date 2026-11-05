@@ -218,6 +218,8 @@ public final class StartupInstrumentation extends Instrumentation {
   private void selectStyle(UiAutomation automation, String name) throws Exception {
     String label = name + " style";
     scrollTo(automation, label, AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD);
+    AccessibilityNodeInfo selected = namedNode(automation.getRootInActiveWindow(), label);
+    if (selected != null && selected.isChecked()) return;
     automation.executeAndWaitForEvent(() -> tapText(automation, label), event -> {
       if (dismissSystemDialog(automation, screenText(automation.getRootInActiveWindow()))) return false;
       AccessibilityNodeInfo node = namedNode(automation.getRootInActiveWindow(), label);
@@ -668,8 +670,10 @@ public final class StartupInstrumentation extends Instrumentation {
             }
           }
           result.putString("smallStatusCaptures", "CAPTURED");
+          result.putString("stage", "restore large tile before all-style large text captures");
           selectLargeTile(automation, "Tokens · 24h", "Session status");
           for (String style : new String[] { "Dashboard", "Focus", "Clock" }) {
+            result.putString("stage", "select large text style " + style);
             selectStyle(automation, style);
             for (int rotation = 0; rotation < 2; rotation++) {
               result.putString("stage", "large text " + style + " rotation " + rotation);
