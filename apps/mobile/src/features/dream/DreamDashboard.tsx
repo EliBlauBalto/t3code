@@ -112,8 +112,16 @@ export function DreamDashboard() {
 
 export function DreamDisplay({ source }: { readonly source: ReturnType<typeof useDreamSources> }) {
   const { preferences } = source;
-  const { now, window } = useDreamClock();
   const visibleSlots = dreamVisibleSlots(preferences);
+  const quotas = visibleSlots.includes("limits")
+    ? buildSubscriptionUsageSnapshot(
+        new Map([...source.presentations].filter(([id]) => source.environmentIds.has(id))),
+        "",
+        Infinity,
+        source.live,
+      )
+    : null;
+  const { now, window } = useDreamClock(quotas?.providers.map((provider) => provider.expiresAt));
   const usageIds =
     source.initialized && visibleSlots.some((slot) => slot === "tokens" || slot === "cost")
       ? source.environmentIds
@@ -144,13 +152,6 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
   });
   const unavailable = connectionState !== "live" && connectionState !== "partial";
   const partial = connectionState === "partial";
-  const quotas = visibleSlots.includes("limits")
-    ? buildSubscriptionUsageSnapshot(
-        new Map([...source.presentations].filter(([id]) => source.environmentIds.has(id))),
-        "",
-        Infinity,
-      )
-    : null;
   const tightest = resolveDreamQuota(quotas?.providers ?? [], now.getTime(), partial);
   const number = (value: number) => (unavailable ? "–" : `${partial ? "~" : ""}${value}`);
   const quotaRemaining =
@@ -161,7 +162,9 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
         return {
           value: reading ? `${reading.partial ? "~" : ""}${formatTokens(reading.tokens)}` : "–",
           detail: !reading
-            ? "Usage unavailable"
+            ? usage.isPending
+              ? "Updating · selected machines"
+              : "Usage unavailable"
             : reading.refreshing
               ? "Updating · selected machines"
               : reading.partial
@@ -173,18 +176,22 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
         return {
           value:
             reading?.costUsd !== null && reading?.costUsd !== undefined
-              ? `${reading.partial ? "~" : ""}${formatUsd(reading.costUsd)}`
+              ? `${reading.partial || reading.costPartial ? "~" : ""}${formatUsd(reading.costUsd)}`
               : "–",
           detail:
             !reading || reading.costUsd === null
-              ? "Cost unavailable"
-              : reading.refreshing
+              ? usage.isPending
                 ? "Updating · selected machines"
-                : reading.partial
-                  ? "Partial · selected machines"
-                  : reading.estimated
-                    ? "Estimated · selected machines"
-                    : "Reported · selected machines",
+                : "Cost unavailable"
+              : reading.costPartial
+                ? `${reading.refreshing ? "Updating" : "Partial"} · unpriced usage`
+                : reading.refreshing
+                  ? `${reading.estimated ? "Updating estimate" : "Updating"} · selected machines`
+                  : reading.partial
+                    ? `${reading.estimated ? "Partial estimate" : "Partial"} · selected machines`
+                    : reading.estimated
+                      ? "Estimated · selected machines"
+                      : "Reported · selected machines",
           alert: false,
         };
       case "limits":
@@ -320,12 +327,15 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
               </View>
             ))}
             {large && !unavailable && counts.waiting + counts.failed + counts.limited > 0 ? (
-              <Text numberOfLines={1} style={{ color: colors.secondary, fontSize: 13 }}>
-                {counts.waiting} waiting ·{" "}
+              <Text
+                numberOfLines={1}
+                style={{ color: colors.secondary, fontSize: Math.max(11, 13 * tileScale) }}
+              >
+                {number(counts.waiting)} waiting ·{" "}
                 <Text style={counts.failed > 0 ? { color: colors.alert } : undefined}>
-                  {counts.failed} failed
+                  {number(counts.failed)} failed
                 </Text>{" "}
-                · {counts.limited} limited
+                · {number(counts.limited)} limited
               </Text>
             ) : null}
           </View>

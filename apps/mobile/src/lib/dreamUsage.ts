@@ -6,6 +6,7 @@ export interface DreamUsageReading {
   readonly scope: string;
   readonly tokens: number;
   readonly costUsd: number | null;
+  readonly costPartial: boolean;
   readonly estimated: boolean;
   readonly partial: boolean;
   readonly refreshing: boolean;
@@ -38,11 +39,7 @@ export function resolveDreamUsage(
   const scopeFor = (ids: readonly EnvironmentId[]) =>
     JSON.stringify([[...environmentIds].sort(), [...ids].sort()]);
   const pending = available.some((entry) => entry.summary === null || entry.isPending);
-  if (
-    pending &&
-    available.every((entry) => entry.summary === null || entry.isPending) &&
-    previous?.scope === scopeFor(available.map((entry) => entry.environmentId))
-  ) {
+  if (pending && previous?.scope === scopeFor(available.map((entry) => entry.environmentId))) {
     return previous.refreshing ? previous : { ...previous, refreshing: true };
   }
   const answered = available.filter((entry) => entry.summary !== null && !entry.isPending);
@@ -67,7 +64,8 @@ export function resolveDreamUsage(
   const next = {
     scope: scopeFor(answered.map((entry) => entry.environmentId)),
     tokens: merged.totalTokens,
-    costUsd: merged.costQuality.unpricedShare === 0 ? merged.costUsd : null,
+    costUsd: merged.costQuality.unpricedShare < 1 ? merged.costUsd : null,
+    costPartial: merged.costQuality.unpricedShare > 0,
     estimated: merged.costQuality.modelPricedShare > 0,
     partial:
       answered.length < environmentIds.size ||

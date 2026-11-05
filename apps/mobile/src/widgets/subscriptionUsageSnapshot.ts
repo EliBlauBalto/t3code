@@ -7,6 +7,7 @@ import {
 } from "@t3tools/shared/usageLimits";
 
 import type { WidgetTheme } from "./widgetTheme";
+import type { EnvironmentId } from "@t3tools/contracts";
 
 export interface SubscriptionUsageSnapshot {
   theme?: WidgetTheme;
@@ -123,10 +124,15 @@ function subscriptionUsageProps(
 }
 
 export function buildSubscriptionUsageSnapshot(
-  presentations: LimitPresentations,
+  allPresentations: LimitPresentations,
   url: string,
   maxWindowsPerProvider = 6,
+  includedEnvironmentIds: ReadonlySet<EnvironmentId> | null = null,
 ): SubscriptionUsageSnapshot {
+  const presentations =
+    includedEnvironmentIds === null
+      ? allPresentations
+      : new Map([...allPresentations].filter(([id]) => includedEnvironmentIds.has(id)));
   const sourceUnavailable = [...presentations.values()].some((presentation) =>
     presentation.serverConfig?.usageLimitSources?.some((source) => Boolean(source.error)),
   );

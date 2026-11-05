@@ -1,5 +1,6 @@
-import { createElement } from "react";
+import { act, createElement, useLayoutEffect } from "react";
 import { renderToString } from "react-dom/server";
+import { createRoot } from "react-dom/client";
 import { RegistryContext } from "@effect/atom-react";
 import { Atom, AtomRegistry } from "effect/reactivity";
 import { EnvironmentId, ProjectId, ThreadId } from "@t3tools/contracts";
@@ -81,7 +82,7 @@ vi.mock("../../state/preferences", async (importOriginal) => {
 
 import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
 import { normalizeDreamPreferences } from "../../lib/dreamDashboard";
-import { useDreamSources } from "./useDreamDashboard";
+import { useDreamClock, useDreamSources } from "./useDreamDashboard";
 import { environmentThreadShells } from "../../state/threads";
 import { makeThreadShellFixture } from "../../test-fixtures";
 
@@ -142,6 +143,51 @@ it.effect("preserves separate Dream setting changes submitted before the next re
     }
   }),
 );
+
+it("wakes at quota deadlines as well as minute boundaries and releases its timer", async () => {
+  storage.preferences = {};
+  const actEnvironment = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+  const previousActEnvironment = actEnvironment.IS_REACT_ACT_ENVIRONMENT;
+  actEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
+  const start = Date.parse("2026-11-04T12:10:00Z");
+  vi.useFakeTimers({ now: start });
+  const baselineTimers = vi.getTimerCount();
+  const root = createRoot(document.createElement("div"));
+  const readings: Array<ReturnType<typeof useDreamClock>> = [];
+  function Probe({ deadlines }: { readonly deadlines: readonly number[] }) {
+    const clock = useDreamClock(deadlines);
+    useLayoutEffect(() => {
+      readings.push(clock);
+    }, [clock]);
+    return null;
+  }
+  try {
+    act(() => root.render(createElement(Probe, { deadlines: [start + 30_000, start + 45_000] })));
+    expect(vi.getTimerCount()).toBe(baselineTimers + 1);
+    for (const elapsed of [30_000, 15_000, 15_000]) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(elapsed);
+      });
+    }
+    expect([...new Set(readings.map((reading) => reading.now.getTime()))]).toEqual([
+      start,
+      start + 30_000,
+      start + 45_000,
+      start + 60_000,
+    ]);
+    vi.setSystemTime(start + 70_000);
+    act(() => root.render(createElement(Probe, { deadlines: [start + 65_000] })));
+    expect(readings.at(-1)!.now.getTime()).toBe(start + 70_000);
+    expect(readings.at(-1)!.window).toEqual(readings[0]!.window);
+    expect(vi.getTimerCount()).toBe(baselineTimers + 1);
+  } finally {
+    act(() => root.unmount());
+    const remainingTimers = vi.getTimerCount();
+    vi.useRealTimers();
+    actEnvironment.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
+    expect(remainingTimers).toBe(baselineTimers);
+  }
+});
 
 it.effect(
   "ignores streaming-only shell changes while preserving quiet updates and navigation membership",

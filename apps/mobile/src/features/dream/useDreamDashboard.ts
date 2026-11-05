@@ -121,26 +121,34 @@ export function useDreamSources() {
 const usageWindow = (now: Date) =>
   makeWindow(1, new Date(Math.floor(now.getTime() / 300_000) * 300_000), "hour");
 
-export function useDreamClock() {
+export function useDreamClock(deadlines: readonly number[] = []) {
+  const deadlineKey = JSON.stringify([...deadlines].filter(Number.isFinite).sort((a, b) => a - b));
   const [clock, setClock] = useState(() => ({
     now: new Date(),
     window: usageWindow(new Date()),
   }));
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- advances the clock each minute; usage windows are five-minute snapshots
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- advances visible time at minute boundaries and quota expiry; usage windows stay five-minute snapshots
   useEffect(() => {
+    const expiries = JSON.parse(deadlineKey) as number[];
     let timer: ReturnType<typeof setTimeout>;
-    const schedule = () => {
-      timer = setTimeout(
-        () => {
-          const now = new Date();
-          setClock({ now, window: usageWindow(now) });
-          schedule();
-        },
-        60_000 - (Date.now() % 60_000),
-      );
+    const update = () => {
+      const now = new Date();
+      setClock({ now, window: usageWindow(now) });
     };
+    const schedule = () => {
+      const time = Date.now();
+      const next = Math.min(
+        time + 60_000 - (time % 60_000),
+        expiries.find((expiry) => expiry > time) ?? Infinity,
+      );
+      timer = setTimeout(() => {
+        update();
+        schedule();
+      }, next - time);
+    };
+    update();
     schedule();
     return () => clearTimeout(timer);
-  }, []);
+  }, [deadlineKey]);
   return clock;
 }

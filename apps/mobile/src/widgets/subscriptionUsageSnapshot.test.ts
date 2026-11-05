@@ -167,6 +167,31 @@ describe("subscription widget snapshots", () => {
       windows: [{ remaining: 20 }],
       partial: true,
     });
+    local.providers = [
+      provider({ usageLimits: { checkedAt, windows: [{ ...window, usedPercent: 20 }] } }),
+    ];
+    input.get(EnvironmentId.make("other"))!.serverConfig.providers = [
+      provider({
+        auth: { status: "authenticated", email: "offline@example.com" },
+        usageLimits: { checkedAt, windows: [{ ...window, usedPercent: 80 }] },
+      }),
+    ];
+    expect(
+      buildSubscriptionUsageSnapshot(input, deepLink).providers[0]?.windows[0]?.remaining,
+    ).toBe(50);
+    expect
+      .soft(
+        buildSubscriptionUsageSnapshot(
+          input,
+          deepLink,
+          Infinity,
+          new Set([EnvironmentId.make("env")]),
+        ).providers[0]?.windows[0]?.remaining,
+      )
+      .toBe(80);
+    expect
+      .soft(buildSubscriptionUsageSnapshot(input, deepLink, Infinity, new Set()).providers)
+      .toEqual([]);
   });
 });
 

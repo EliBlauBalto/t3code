@@ -33,6 +33,8 @@ Touching the screen saver exits. **Customize** in Android settings returns to th
 dashboard settings. Session counts follow your project and session choices; usage
 and quota cover every session on the machines you selected. Usage refreshes every
 five minutes. The preview simulates each layout; it does not rotate your phone.
+Cost shows the known subtotal when some usage is unpriced and says so; when all usage
+is unpriced, it remains unavailable.
 Partial readings show a `~` and exclude machines that cannot report. Requests counts
 approval requests and guest messages; Questions counts agent questions.
 System brightness follows Android's dimming; Medium and Low darken the display further.

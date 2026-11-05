@@ -57,6 +57,7 @@ import { environmentCatalog } from "../connection/catalog";
 import { appAtomRegistry } from "../state/atom-registry";
 import { environmentPresentations } from "../state/presentation";
 import { installSubscriptionUsageRefresh } from "./useSubscriptionUsage";
+import { WIDGET_REFRESH_INTERVAL } from "./subscriptionUsageSnapshot";
 
 const registry = appAtomRegistry as AtomRegistry.AtomRegistry;
 const catalogAtom = environmentCatalog.catalogValueAtom as unknown as Atom.Writable<{
@@ -70,9 +71,13 @@ const connected = EnvironmentId.make("env-connected");
 const connecting = EnvironmentId.make("env-connecting");
 
 describe("installSubscriptionUsageRefresh", () => {
-  it("refreshes for a visible dream without treating the normal app as foreground, and stops on disposal", () => {
+  it("refreshes for a visible dream without treating the normal app as foreground, and stops on disposal", async () => {
     fixture.appState = "background";
     fixture.refreshed = [];
+    fixture.appStateListeners.clear();
+    vi.useFakeTimers({ now: 0 });
+    const releaseCatalog = registry.mount(catalogAtom);
+    const releasePresentations = registry.mount(presentationsAtom);
     registry.set(catalogAtom, { isReady: true });
     registry.set(
       presentationsAtom,
@@ -82,19 +87,30 @@ describe("installSubscriptionUsageRefresh", () => {
       ]),
     );
     const dispose = installSubscriptionUsageRefresh(() => true, new Set([connected]));
+    let disposed = false;
     try {
       expect(fixture.refreshed).toEqual([connected]);
-    } finally {
+      await vi.advanceTimersByTimeAsync(0);
       dispose();
+      disposed = true;
+      fixture.refreshed = [];
+      vi.setSystemTime(WIDGET_REFRESH_INTERVAL + 1);
+      registry.set(
+        presentationsAtom,
+        new Map([[connected, { connection: { phase: "connected" } }]]),
+      );
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fixture.refreshed).toEqual([]);
+      await vi.advanceTimersByTimeAsync(WIDGET_REFRESH_INTERVAL);
+      expect(fixture.refreshed).toEqual([]);
+      expect(fixture.appState).toBe("background");
+      expect(fixture.appStateListeners.size).toBe(0);
+    } finally {
+      if (!disposed) dispose();
+      releasePresentations();
+      releaseCatalog();
+      vi.useRealTimers();
     }
-    fixture.refreshed = [];
-    registry.set(
-      presentationsAtom,
-      new Map([[connecting, { connection: { phase: "connected" } }]]),
-    );
-    expect(fixture.refreshed).toEqual([]);
-    expect(fixture.appState).toBe("background");
-    expect(fixture.appStateListeners.size).toBe(0);
   });
   it("refreshes connected environments once the catalog is ready and the app is active", () => {
     fixture.appState = "background";

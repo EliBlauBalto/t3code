@@ -126,11 +126,21 @@ it("keeps the last valid reading during a refresh but clears it after access, co
     merged: { ...empty, totalTokens: 2400, costUsd: 6 },
   });
   expect(full).toMatchObject({ tokens: 2400, costUsd: 6, partial: false });
+  expect
+    .soft(
+      resolveDreamUsage(full, bothIds, {
+        ...both,
+        selectedEnvironments: [
+          current.selectedEnvironments[0]!,
+          { ...second, summary: null, isPending: true },
+        ],
+      }),
+    )
+    .toMatchObject({ tokens: 2400, costUsd: 6, partial: false, refreshing: true });
   for (const change of [
     { isConnected: false },
     { canReadDiagnostics: false },
     { error: "Denied" },
-    { summary: null, isPending: true },
     { summary: { ...second.summary, sources: [missing] } },
     { summary: { ...second.summary, contractVersion: USAGE_CONTRACT_VERSION + 10000 } },
     { summary: { ...second.summary, sources: [{ ...source, refreshing: true as const }] } },
@@ -145,6 +155,20 @@ it("keeps the last valid reading during a refresh but clears it after access, co
       partial: true,
     });
   }
+  expect
+    .soft(
+      resolveDreamUsage(null, ids, {
+        ...current,
+        merged: { ...current.merged, costQuality: { ...empty.costQuality, unpricedShare: 0.01 } },
+      }),
+    )
+    .toMatchObject({ tokens: 1200, costUsd: 3, costPartial: true });
+  expect(
+    resolveDreamUsage(null, ids, {
+      ...current,
+      merged: { ...current.merged, costQuality: { ...empty.costQuality, unpricedShare: 1 } },
+    }),
+  ).toMatchObject({ tokens: 1200, costUsd: null });
   expect
     .soft(
       resolveDreamUsage(full, bothIds, {

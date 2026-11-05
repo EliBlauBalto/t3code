@@ -455,13 +455,50 @@ public final class StartupInstrumentation extends Instrumentation {
             root.getBoundsInScreen(screen);
             for (String label : "Dashboard".equals(style)
                 ? new String[] { "Session status", "Tokens · 24h", "Cost · 24h", "Quota remaining", "Working" }
-                : "Focus".equals(style) ? new String[] { "Session status", "Working", "Input", "Questions", "Finished" } : new String[0]) {
+                : "Focus".equals(style) ? new String[] { "Session status", "Working", "Requests", "Questions", "Finished" } : new String[0]) {
               Rect item = textBounds(root, label);
               if (item == null || item.isEmpty() || !screen.contains(item)) {
                 throw new AssertionError("Clipped " + label + " in " + style + " " + viewport[0]);
               }
             }
-            awaitScreen(automation, () -> exitDream(automation), "Desk dashboard");
+            if ("Dashboard".equals(style) && "phone-landscape".equals(viewport[0])) {
+              result.putString("stage", "cold populated landscape layout");
+              String populatedPid = shell(automation, "pidof com.t3tools.t3code.dream");
+              automation.executeAndWaitForEvent(() -> {
+                automation.injectInputEvent(new android.view.KeyEvent(
+                    android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_HOME), true);
+                automation.injectInputEvent(new android.view.KeyEvent(
+                    android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_HOME), true);
+              }, event -> launcherVisible(automation), 30000);
+              shell(automation, "am force-stop com.t3tools.t3code.dream");
+              automation.executeAndWaitForEvent(() -> startDream(automation), event -> {
+                AccessibilityNodeInfo coldRoot = automation.getRootInActiveWindow();
+                if (coldRoot == null) return false;
+                String coldText = screenText(coldRoot);
+                if (dismissSystemDialog(automation, coldText)) return false;
+                Rect coldScreen = new Rect();
+                coldRoot.getBoundsInScreen(coldScreen);
+                Rect status = textBounds(coldRoot, "Session status");
+                Rect tokens = textBounds(coldRoot, "Tokens · 24h");
+                return coldScreen.width() > coldScreen.height()
+                    && status != null && tokens != null && !status.isEmpty() && !tokens.isEmpty()
+                    && coldScreen.contains(status) && coldScreen.contains(tokens)
+                    && tokens.left > status.right
+                    && !has(coldText, "Connect your first machine")
+                    && !has(coldText, "Waiting for a connection");
+              }, 30000);
+              String populatedColdPid = shell(automation, "pidof com.t3tools.t3code.dream");
+              if (populatedPid.isEmpty() || populatedColdPid.isEmpty() || populatedPid.equals(populatedColdPid)) {
+                throw new AssertionError("Populated Dream did not cold-start a new app process");
+              }
+              capture(automation, "live-dashboard-phone-landscape-cold");
+              result.putString("coldPopulatedLayout", "PASS");
+              automation.executeAndWaitForEvent(
+                  () -> exitDream(automation), event -> launcherVisible(automation), 30000);
+              awaitScreen(automation, () -> getContext().startActivity(settings), "Dashboard style");
+            } else {
+              awaitScreen(automation, () -> exitDream(automation), "Desk dashboard");
+            }
           }
           shell(automation, "wm size reset");
           shell(automation, "wm density reset");
