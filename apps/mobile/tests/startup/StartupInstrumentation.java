@@ -137,11 +137,20 @@ public final class StartupInstrumentation extends Instrumentation {
       file.write(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
     Bitmap screenshot = automation.takeScreenshot();
-    if (screenshot != null) {
+    if (screenshot == null) throw new AssertionError("Screenshot unavailable: " + name);
+    try {
       try (FileOutputStream file = new FileOutputStream(new File(directory, name + ".png"))) {
         screenshot.compress(Bitmap.CompressFormat.PNG, 100, file);
       }
+    } finally {
+      screenshot.recycle();
     }
+  }
+
+  private String clockText(UiAutomation automation) {
+    java.util.regex.Matcher clock = java.util.regex.Pattern.compile("\\b\\d{1,2}:\\d{2}\\b")
+        .matcher(screenText(automation.getRootInActiveWindow()));
+    return clock.find() ? clock.group() : "";
   }
 
   private Rect textBounds(AccessibilityNodeInfo node, String text) {
@@ -505,6 +514,57 @@ public final class StartupInstrumentation extends Instrumentation {
           automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
         }
         result.putString("responsiveStyles", "PASS");
+        result.putString("stage", "background Clock advancement");
+        shell(automation, "wm size 1080x1920");
+        shell(automation, "wm density 480");
+        automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
+        awaitScreen(automation, () -> startDream(automation), "working");
+        String firstClock = clockText(automation);
+        if (firstClock.isEmpty()) throw new AssertionError("Clock text is missing");
+        result.putString("clockInitial", firstClock);
+        capture(automation, "live-clock-before-advancement");
+        for (int tick = 0; tick < 3; tick++) {
+          final String previousClock = clockText(automation);
+          result.putString("stage", "background Clock tick " + (tick + 1));
+          automation.executeAndWaitForEvent(() -> {}, event -> {
+            String nextClock = clockText(automation);
+            return !nextClock.isEmpty() && !nextClock.equals(previousClock);
+          }, 75000);
+        }
+        result.putString("clockFinal", clockText(automation));
+        capture(automation, "live-clock-after-advancement");
+        result.putString("clockAdvancement", "PASS");
+        awaitScreen(automation, () -> exitDream(automation), "Desk dashboard");
+        selectStyle(automation, "Dashboard");
+        scrollTo(automation, "Large tile: Session status");
+        awaitScreen(automation, () -> tapText(automation, "Large tile: Session status"), "Empty");
+        awaitScreen(automation, () -> tapText(automation, "Tokens · 24h"), "Large tile: Tokens · 24h");
+        String previousFontScale = shell(automation, "settings get system font_scale");
+        try {
+          for (String fontScale : new String[] { "1.0", "1.5" }) {
+            shell(automation, "settings put system font_scale " + fontScale);
+            for (int rotation = 0; rotation < 2; rotation++) {
+              result.putString("stage", "small status font " + fontScale + " rotation " + rotation);
+              automation.setRotation(rotation == 0
+                  ? UiAutomation.ROTATION_FREEZE_0 : UiAutomation.ROTATION_FREEZE_90);
+              awaitScreen(automation, () -> startDream(automation), "Tokens · 24h");
+              capture(automation, "small-status-font-" + fontScale.replace('.', '-')
+                  + (rotation == 0 ? "-portrait" : "-landscape"));
+              awaitScreen(automation, () -> exitDream(automation), "Desk dashboard");
+            }
+          }
+          result.putString("smallStatusCaptures", "CAPTURED");
+        } finally {
+          shell(automation, "null".equals(previousFontScale)
+              ? "settings delete system font_scale"
+              : "settings put system font_scale " + Float.parseFloat(previousFontScale));
+          shell(automation, "wm size reset");
+          shell(automation, "wm density reset");
+          automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
+        }
+        scrollTo(automation, "Large tile: Tokens · 24h");
+        awaitScreen(automation, () -> tapText(automation, "Large tile: Tokens · 24h"), "Empty");
+        awaitScreen(automation, () -> tapText(automation, "Session status"), "Large tile: Session status");
       }
       result.putString("stage", "unsupported device capability");
       ComponentName systemSettings = new Intent(android.provider.Settings.ACTION_DREAM_SETTINGS)
