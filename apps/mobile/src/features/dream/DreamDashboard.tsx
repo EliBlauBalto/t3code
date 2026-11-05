@@ -2,7 +2,6 @@ import { RegistryContext } from "@effect/atom-react";
 import type { EnvironmentId } from "@t3tools/contracts";
 import { useEffect, useState } from "react";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import { requireOptionalNativeModule } from "expo";
 import { formatTokens, formatUsd } from "@t3tools/shared/usageFormat";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { useUsage } from "../../state/usage";
@@ -20,6 +19,7 @@ import {
 } from "../../lib/dreamDashboard";
 import { themeColorWithAlpha } from "../../lib/mobileTheme";
 import { resolveDreamUsage, type DreamUsageReading } from "../../lib/dreamUsage";
+import { dreamControls } from "../../lib/dreamSupport";
 import {
   AppearancePreferencesProvider,
   useAppearancePreferences,
@@ -31,7 +31,6 @@ import { CloudAuthProvider } from "../cloud/CloudAuthProvider";
 import { useAppStartupReady } from "../../AppStartup";
 import "../../../global.css";
 
-const native = requireOptionalNativeModule<{ is24HourFormat(): boolean }>("T3NativeControls");
 const EMPTY_ENVIRONMENTS: ReadonlySet<EnvironmentId> = new Set();
 
 const AMBER = {
@@ -466,7 +465,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
   }[connectionState];
   const hour12 =
     preferences.clock === "system"
-      ? !(native?.is24HourFormat() ?? true)
+      ? !(dreamControls?.is24HourFormat?.() ?? true)
       : preferences.clock === "12";
   const minute = now.getMinutes();
   const timeParts = new Intl.DateTimeFormat(undefined, {
