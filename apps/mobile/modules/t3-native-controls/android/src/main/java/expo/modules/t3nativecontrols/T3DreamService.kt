@@ -84,6 +84,14 @@ class T3DreamService : DreamService() {
   private fun stopSurface() {
     dreaming = false
     reactHost?.removeReactInstanceEventListener(instanceListener)
+    stopTimerLease()
+    surface?.stop()
+    surface?.detach()
+    surface = null
+    reactHost = null
+  }
+
+  private fun stopTimerLease() {
     taskContext?.get()?.let { context ->
       context.removeLifecycleEventListener(lifecycleListener)
       taskId?.let { id -> HeadlessJsTaskContext.getInstance(context).finishTask(id) }
@@ -95,10 +103,6 @@ class T3DreamService : DreamService() {
     renderer = null
     taskId = null
     taskContext = null
-    surface?.stop()
-    surface?.detach()
-    surface = null
-    reactHost = null
   }
 
   override fun onDestroy() {
@@ -107,7 +111,8 @@ class T3DreamService : DreamService() {
   }
 
   private fun startTimerLease(context: ReactContext) {
-    if (!dreaming || taskId != null) return
+    if (!dreaming || (taskId != null && taskContext?.get() === context)) return
+    stopTimerLease()
     renderer =
       UIManagerHelper.getUIManager(context, UIManagerType.FABRIC) as? FabricUIManager ?: return
     taskContext = WeakReference(context)
@@ -120,7 +125,7 @@ class T3DreamService : DreamService() {
   }
 
   private fun resumeRenderer() {
-    // Resume rendering only; ReactHost/AppState must keep the chat activity backgrounded.
+    // RN 0.88: keep Fabric and its dispatcher active without resuming ReactHost/AppState.
     renderer?.onHostResume()
     (renderer?.eventDispatcher as? LifecycleEventListener)?.onHostResume()
   }

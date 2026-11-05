@@ -154,7 +154,10 @@ function Choice<Value extends string>(props: {
       </Text>
       <SegmentedControl
         variant="card"
-        options={options(props.values)}
+        options={options(props.values).map((option) => ({
+          ...option,
+          accessibilityLabel: `${props.label}: ${option.label}`,
+        }))}
         selected={props.selected}
         onSelect={props.disabled ? () => {} : props.onSelect}
       />
@@ -182,11 +185,13 @@ export function SettingsDeskDashboardRouteScreen() {
   const canOpenScreenSaver = useMemo(() => supportsDream(), []);
   const unavailableOption = (noun: string) => (key: string) => {
     const machine = [...source.presentations].find(([id]) => key.startsWith(`${id}:`));
+    const identity = machine ? key.slice(machine[0].length + 1) : key;
+    const status = machine
+      ? `${machine[1].entry.target.label} · ${source.live.has(machine[0]) ? "No longer listed" : "Offline"}`
+      : "Removed or unknown machine";
     return {
-      title: `Saved ${noun} ${machine ? key.slice(machine[0].length + 1) : key}`,
-      subtitle: machine
-        ? `${machine[1].entry.target.label} · ${source.live.has(machine[0]) ? "No longer listed" : "Offline"}`
-        : "Removed or unknown machine",
+      title: `Unavailable ${noun}`,
+      subtitle: `${identity} · ${status}`,
     };
   };
   const customized = (Object.keys(defaults) as (keyof DreamPreferences)[]).some(
@@ -194,6 +199,14 @@ export function SettingsDeskDashboardRouteScreen() {
       !["all", "projects", "threads"].includes(key) &&
       JSON.stringify(preferences[key]) !== JSON.stringify(defaults[key]),
   );
+  let selectionFooter =
+    "Choose what feeds your session counts. Your selection applies to every style.";
+  if (!preferences.all && source.environmentIds.size === 0) {
+    selectionFooter =
+      preferences.projects.length + preferences.threads.length > 0
+        ? "Your saved choices are no longer available. Choose a project or session to see live status."
+        : "Nothing selected. Choose a project or session to see live status.";
+  }
 
   return (
     <SettingsScreen title="Desk dashboard">
@@ -309,14 +322,7 @@ export function SettingsDeskDashboardRouteScreen() {
               />
             </SettingsSection>
 
-            <SettingsSection
-              title="Sessions"
-              footer={
-                !preferences.all && source.environmentIds.size === 0
-                  ? "Nothing selected. Choose a project or session to see live status."
-                  : "Choose what feeds your session counts. Your selection applies to every style."
-              }
-            >
+            <SettingsSection title="Sessions" footer={selectionFooter}>
               <SettingsSwitchRow
                 label="All projects and sessions"
                 value={preferences.all}

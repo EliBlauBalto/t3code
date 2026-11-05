@@ -6,6 +6,9 @@ export const dreamControls = requireOptionalNativeModule<{
   openDreamSettings(): void;
 }>("T3NativeControls");
 
+let dreamSupported: boolean | undefined;
+
 export function supportsDream() {
-  return Platform.OS === "android" && dreamControls?.isDreamSupported?.() === true;
+  if (Platform.OS !== "android") return false;
+  return (dreamSupported ??= dreamControls?.isDreamSupported?.() === true);
 }

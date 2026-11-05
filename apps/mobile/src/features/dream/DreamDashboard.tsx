@@ -172,28 +172,27 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
                 : "Selected machines",
           alert: false,
         };
-      case "cost":
+      case "cost": {
+        if (!reading || reading.costUsd === null) {
+          return {
+            value: "–",
+            detail: usage.isPending ? "Updating · selected machines" : "Cost unavailable",
+            alert: false,
+          };
+        }
+        const partialCost = reading.partial || reading.costPartial;
+        let quality = reading.estimated ? "Estimated" : "Reported";
+        if (reading.refreshing) {
+          quality = reading.estimated ? "Updating estimate" : "Updating";
+        } else if (partialCost) {
+          quality = reading.estimated ? "Partial estimate" : "Partial";
+        }
         return {
-          value:
-            reading?.costUsd !== null && reading?.costUsd !== undefined
-              ? `${reading.partial || reading.costPartial ? "~" : ""}${formatUsd(reading.costUsd)}`
-              : "–",
-          detail:
-            !reading || reading.costUsd === null
-              ? usage.isPending
-                ? "Updating · selected machines"
-                : "Cost unavailable"
-              : reading.costPartial
-                ? `${reading.refreshing ? "Updating" : "Partial"} · unpriced usage`
-                : reading.refreshing
-                  ? `${reading.estimated ? "Updating estimate" : "Updating"} · selected machines`
-                  : reading.partial
-                    ? `${reading.estimated ? "Partial estimate" : "Partial"} · selected machines`
-                    : reading.estimated
-                      ? "Estimated · selected machines"
-                      : "Reported · selected machines",
+          value: `${partialCost ? "~" : ""}${formatUsd(reading.costUsd)}`,
+          detail: `${quality} · ${reading.costPartial ? "unpriced usage" : "selected machines"}`,
           alert: false,
         };
+      }
       case "limits":
         return {
           value:
