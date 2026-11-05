@@ -325,14 +325,43 @@ public final class StartupInstrumentation extends Instrumentation {
     }
   }
 
+  private boolean dreamVisible(AccessibilityNodeInfo root) {
+    if (root == null || root.getPackageName() == null
+        || !"com.t3tools.t3code.dream".contentEquals(root.getPackageName())) return false;
+    for (AccessibilityNodeInfo.AccessibilityAction action : root.getActionList()) {
+      if (action.getId() == AccessibilityNodeInfo.ACTION_CLICK
+          && action.getLabel() != null && "dismiss".equalsIgnoreCase(action.getLabel().toString())) return true;
+    }
+    return false;
+  }
+
+  private void awaitDream(UiAutomation automation, String expected) throws Exception {
+    automation.executeAndWaitForEvent(() -> startDream(automation), event -> {
+      AccessibilityNodeInfo root = automation.getRootInActiveWindow();
+      String text = screenText(root);
+      if (dismissSystemDialog(automation, text)) return false;
+      return dreamVisible(root) && has(text, expected) && !has(text, "Starting T3 Code");
+    }, 30000);
+  }
+
+  private void awaitDreamExit(UiAutomation automation, String expected) throws Exception {
+    if (!dreamVisible(automation.getRootInActiveWindow())) {
+      automation.executeAndWaitForEvent(() -> {},
+          event -> dreamVisible(automation.getRootInActiveWindow()), 30000);
+    }
+    awaitScreen(automation, () -> exitDream(automation), expected);
+  }
+
   private void exitDream(UiAutomation automation) {
+    AccessibilityNodeInfo root = automation.getRootInActiveWindow();
+    if (!dreamVisible(root)) throw new AssertionError("Dream window changed before exit");
     Rect bounds = new Rect();
-    automation.getRootInActiveWindow().getBoundsInScreen(bounds);
+    root.getBoundsInScreen(bounds);
     tap(automation, bounds.centerX(), bounds.centerY());
   }
 
   private void exitDreamToSettings(UiAutomation automation, Intent settings) throws Exception {
-    awaitScreen(automation, () -> exitDream(automation), "Chats");
+    awaitDreamExit(automation, "Chats");
     if (!has(screenText(automation.getRootInActiveWindow()), "Dashboard style")) {
       awaitScreen(automation, () -> getContext().startActivity(settings), "Dashboard style");
     }
@@ -385,7 +414,7 @@ public final class StartupInstrumentation extends Instrumentation {
       result.putString("preview", "PASS");
       result.putString("stage", "Focus style selection");
       selectStyle(automation, "Focus");
-      awaitScreen(automation, () -> startDream(automation), "Connect your first machine");
+      awaitDream(automation, "Connect your first machine");
       if (has(screenText(automation.getRootInActiveWindow()), "Tokens · 24h")) {
         throw new AssertionError("Focus style still renders the small dashboard tiles");
       }
@@ -393,7 +422,7 @@ public final class StartupInstrumentation extends Instrumentation {
       exitDreamToSettings(automation, settings);
       result.putString("stage", "Clock style selection");
       selectStyle(automation, "Clock");
-      awaitScreen(automation, () -> startDream(automation), "Connect your first machine");
+      awaitDream(automation, "Connect your first machine");
       capture(automation, "dream-clock");
       automation.executeAndWaitForEvent(
           () -> automation.setRotation(UiAutomation.ROTATION_FREEZE_90), event -> {
@@ -433,7 +462,7 @@ public final class StartupInstrumentation extends Instrumentation {
       capture(automation, "settings-restored");
       awaitScreen(automation, () -> getContext().startActivity(launch), "Add environment");
       result.putString("stage", "first Dream start");
-      awaitScreen(automation, () -> startDream(automation), "Connect your first machine");
+      awaitDream(automation, "Connect your first machine");
       capture(automation, "dream-portrait");
       result.putString("stage", "Dream rotation");
       automation.executeAndWaitForEvent(
@@ -449,12 +478,12 @@ public final class StartupInstrumentation extends Instrumentation {
           }, 30000);
       capture(automation, "dream-landscape");
       result.putString("stage", "touch exits Dream");
-      awaitScreen(automation, () -> exitDream(automation), "Add environment");
+      awaitDreamExit(automation, "Add environment");
       capture(automation, "after-dream");
       result.putString("stage", "second Dream start");
-      awaitScreen(automation, () -> startDream(automation), "Connect your first machine");
+      awaitDream(automation, "Connect your first machine");
       result.putString("stage", "second Dream exit");
-      awaitScreen(automation, () -> exitDream(automation), "Add environment");
+      awaitDreamExit(automation, "Add environment");
       result.putString("stage", "cold Dream start");
       String previousPid = shell(automation, "pidof com.t3tools.t3code.dream");
       automation.executeAndWaitForEvent(
@@ -465,7 +494,7 @@ public final class StartupInstrumentation extends Instrumentation {
                 android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_HOME), true);
           }, event -> launcherVisible(automation), 30000);
       shell(automation, "am force-stop com.t3tools.t3code.dream");
-      awaitScreen(automation, () -> startDream(automation), "Connect your first machine");
+      awaitDream(automation, "Connect your first machine");
       String dreamPid = shell(automation, "pidof com.t3tools.t3code.dream");
       if (previousPid.isEmpty() || dreamPid.isEmpty() || previousPid.equals(dreamPid)) {
         throw new AssertionError("Cold Dream did not start a new app process");
@@ -531,9 +560,20 @@ public final class StartupInstrumentation extends Instrumentation {
               String view = screenText(root);
               Rect liveStatus = textBounds(root, "Live");
               if (dismissSystemDialog(automation, view)) return false;
-              if (root == null) return false;
+              if (!dreamVisible(root) || has(view, "Starting T3 Code")) return false;
               Rect bounds = new Rect();
               root.getBoundsInScreen(bounds);
+              for (String label : "Dashboard".equals(style)
+                  ? new String[] { "Session status", "Tokens · 24h", "Cost · 24h", "Quota remaining", "Working", "Requests", "Questions", "Finished" }
+                  : "Focus".equals(style) ? new String[] { "Session status", "Working", "Requests", "Questions", "Finished" } : new String[0]) {
+                Rect item = textBounds(root, label);
+                if (item == null || item.isEmpty() || !bounds.contains(item)) return false;
+              }
+              if ("Dashboard".equals(style) && expectedLandscape) {
+                Rect status = textBounds(root, "Session status");
+                Rect tokens = textBounds(root, "Tokens · 24h");
+                if (tokens.left <= status.right) return false;
+              }
               return has(view, "Clock".equals(style) ? "working" : "Session status")
                   && (bounds.width() > bounds.height()) == expectedLandscape
                   && liveStatus != null && !liveStatus.isEmpty()
@@ -546,17 +586,6 @@ public final class StartupInstrumentation extends Instrumentation {
               throw new AssertionError("Paired screen saver lost live data");
             }
             capture(automation, "live-" + style.toLowerCase(java.util.Locale.ROOT) + "-" + viewport[0]);
-            Rect screen = new Rect();
-            AccessibilityNodeInfo root = automation.getRootInActiveWindow();
-            root.getBoundsInScreen(screen);
-            for (String label : "Dashboard".equals(style)
-                ? new String[] { "Session status", "Tokens · 24h", "Cost · 24h", "Quota remaining", "Working" }
-                : "Focus".equals(style) ? new String[] { "Session status", "Working", "Requests", "Questions", "Finished" } : new String[0]) {
-              Rect item = textBounds(root, label);
-              if (item == null || item.isEmpty() || !screen.contains(item)) {
-                throw new AssertionError("Clipped " + label + " in " + style + " " + viewport[0]);
-              }
-            }
             exitDreamToSettings(automation, settings);
           }
           shell(automation, "wm size reset");
@@ -568,7 +597,7 @@ public final class StartupInstrumentation extends Instrumentation {
         shell(automation, "wm size 1080x1920");
         shell(automation, "wm density 480");
         automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
-        awaitScreen(automation, () -> startDream(automation), "working");
+        awaitDream(automation, "working");
         String firstClock = clockText(automation);
         if (firstClock.isEmpty()) throw new AssertionError("Clock text is missing");
         result.putString("clockInitial", firstClock);
@@ -595,7 +624,7 @@ public final class StartupInstrumentation extends Instrumentation {
               result.putString("stage", "small status font " + fontScale + " rotation " + rotation);
               automation.setRotation(rotation == 0
                   ? UiAutomation.ROTATION_FREEZE_0 : UiAutomation.ROTATION_FREEZE_90);
-              awaitScreen(automation, () -> startDream(automation), "Tokens · 24h");
+              awaitDream(automation, "Tokens · 24h");
               capture(automation, "small-status-font-" + fontScale.replace('.', '-')
                   + (rotation == 0 ? "-portrait" : "-landscape"));
               exitDreamToSettings(automation, settings);
@@ -626,7 +655,7 @@ public final class StartupInstrumentation extends Instrumentation {
         automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
         automation.executeAndWaitForEvent(() -> startDream(automation), event -> {
           AccessibilityNodeInfo coldRoot = automation.getRootInActiveWindow();
-          if (coldRoot == null) return false;
+          if (!dreamVisible(coldRoot)) return false;
           String coldText = screenText(coldRoot);
           if (dismissSystemDialog(automation, coldText)) return false;
           Rect coldScreen = new Rect();
