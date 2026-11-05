@@ -662,7 +662,7 @@ public final class StartupInstrumentation extends Instrumentation {
               Rect bounds = new Rect();
               root.getBoundsInScreen(bounds);
               for (String label : "Dashboard".equals(style)
-                  ? new String[] { "Session status", "Tokens · 24h", "Cost · 24h", "Quota remaining", "Working", "Requests", "Questions", "Finished" }
+                  ? new String[] { "Session status", "Tokens · 24h", "Cost · 24h", "Quota left", "Working", "Requests", "Questions", "Finished" }
                   : "Focus".equals(style) ? new String[] { "Session status", "Working", "Requests", "Questions", "Finished" } : new String[0]) {
                 Rect item = textBounds(root, label);
                 if (item == null || item.isEmpty() || !bounds.contains(item)) return false;
