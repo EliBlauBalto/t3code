@@ -91,3 +91,7 @@ for name in reload-before reload-after reload-clock-advanced reload-returned-to-
   done
 done
 grep -q 'reload=PASS' "$output/reload-result.txt"
+if grep -Eq 'T3DreamService.*RN 0\.88.*unavailable' "$output/logcat.txt" "$output/reload-logcat.txt"; then
+  printf '%s\n' 'Dream React Native lifecycle compatibility check failed; inspect retained logs.' >&2
+  exit 1
+fi

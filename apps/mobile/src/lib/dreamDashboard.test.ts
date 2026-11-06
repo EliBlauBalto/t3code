@@ -11,7 +11,60 @@ import {
   dreamClockFontSize,
   dreamTileScale,
   resolveDreamQuota,
+  resolveDreamStatusRows,
+  resolveDreamClockStatus,
 } from "./dreamDashboard";
+
+it("keeps blocked and waiting sessions represented in compact tiles and the clock summary", () => {
+  const empty = summarizeDreamThreads([]);
+  expect(resolveDreamClockStatus(empty).flatMap((row) => row.keys)).toEqual([
+    "working",
+    "input",
+    "questions",
+    "finished",
+  ]);
+  for (const counts of [
+    empty,
+    { ...empty, working: 1 },
+    { ...empty, working: 1, input: 2 },
+    { ...empty, limited: 1 },
+    { ...empty, waiting: 1 },
+    { ...empty, failed: 1, limited: 1, waiting: 1 },
+  ]) {
+    const rows = resolveDreamStatusRows(counts, true);
+    const represented = new Set(rows.flatMap((row) => row.keys));
+    expect(rows).toHaveLength(4);
+    for (const [key, count] of Object.entries(counts)) {
+      if (count > 0) expect(represented.has(key as keyof typeof counts)).toBe(true);
+    }
+    const clockKeys = new Set(resolveDreamClockStatus(counts).flatMap((row) => row.keys));
+    for (const [key, count] of Object.entries(counts)) {
+      if (count > 0) expect(clockKeys.has(key as keyof typeof counts)).toBe(true);
+    }
+  }
+  const all = {
+    working: 1,
+    input: 2,
+    questions: 3,
+    failed: 4,
+    limited: 5,
+    waiting: 6,
+    finished: 7,
+  };
+  const grouped = resolveDreamStatusRows(all, true);
+  expect(grouped).toHaveLength(4);
+  expect(new Set(grouped.flatMap((row) => row.keys))).toEqual(new Set(Object.keys(all)));
+  expect(grouped.map((row) => row.values)).toEqual([[1], [5], [9], [6, 7]]);
+  expect(resolveDreamStatusRows(all, false).flatMap((row) => row.keys)).toEqual([
+    "working",
+    "input",
+    "questions",
+    "finished",
+  ]);
+  expect(new Set(resolveDreamClockStatus(all).flatMap((row) => row.keys))).toEqual(
+    new Set(Object.keys(all)),
+  );
+});
 
 it("qualifies available quota when another supported provider is missing or expired", () => {
   const codex = { name: "Codex", expiresAt: 200, windows: [{ label: "5 hours", remaining: 80 }] };

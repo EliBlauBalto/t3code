@@ -1,7 +1,9 @@
 import { StyleSheet, Text, View } from "react-native";
 import {
   DREAM_KPIS,
+  dreamStatusSummary,
   dreamTileScale,
+  resolveDreamStatusRows,
   type DreamKpi,
   type summarizeDreamThreads,
 } from "../../lib/dreamDashboard";
@@ -10,7 +12,6 @@ import { themeColorWithAlpha } from "../../lib/mobileTheme";
 type DreamColors = Readonly<
   Record<"screen" | "card" | "foreground" | "secondary" | "accent" | "alert", string>
 >;
-const STATUS_KPIS = ["working", "input", "questions", "finished"] as const;
 
 export function DreamTile({
   kpi,
@@ -47,17 +48,14 @@ export function DreamTile({
   if (kpi === "") return <View style={[styles.card, frame]} />;
   const tileScale = dreamTileScale(scale, frame, large && kpi === "status", fontScale);
   const compactStatus = kpi === "status" && (!large || frame.height < 180 * Math.max(1, fontScale));
-  const statusKpis =
-    compactStatus && counts.failed > 0
-      ? (["working", "input", "questions", "failed"] as const)
-      : STATUS_KPIS;
+  const statusRows = resolveDreamStatusRows(counts, compactStatus);
   const secondaryStatus = (["waiting", "failed", "limited"] as const).filter(
-    (key) => counts[key] > 0 && !(compactStatus && key === "failed"),
+    (key) => counts[key] > 0,
   );
-  const danger = value.alert || (kpi === "status" && counts.failed > 0);
+  const danger = value.alert || (kpi === "status" && (counts.failed > 0 || counts.limited > 0));
   const attention =
     kpi === "status"
-      ? needsYou("input") || needsYou("questions") || counts.failed > 0
+      ? needsYou("input") || needsYou("questions") || counts.failed > 0 || counts.limited > 0
       : kpi === "input" || kpi === "questions"
         ? needsYou(kpi)
         : value.alert;
@@ -70,9 +68,7 @@ export function DreamTile({
     <View
       accessible={compactStatus}
       accessibilityLabel={
-        compactStatus
-          ? `Session status. ${STATUS_KPIS.map((key) => `${DREAM_KPIS[key]} ${number(counts[key])}`).join(". ")}${counts.failed > 0 ? `. ${number(counts.failed)} failed` : ""}`
-          : undefined
+        compactStatus ? dreamStatusSummary(counts, partial, unavailable) : undefined
       }
       style={[
         styles.card,
@@ -104,7 +100,7 @@ export function DreamTile({
               { color: colors.secondary, fontSize: Math.max(11, (large ? 13 : 11) * tileScale) },
             ]}
           >
-            {kpi === "limits" ? "Quota left" : kpi === "connections" ? "Machines" : DREAM_KPIS[kpi]}
+            {DREAM_KPIS[kpi]}
           </Text>
           {attention ? (
             <View
@@ -127,9 +123,9 @@ export function DreamTile({
             focused && compactStatus && styles.focusCompactStatusGrid,
           ]}
         >
-          {statusKpis.map((key) => (
+          {statusRows.map((row) => (
             <View
-              key={key}
+              key={row.keys.join(":")}
               style={[
                 styles.statusCell,
                 compactStatus && styles.compactStatusCell,
@@ -142,14 +138,17 @@ export function DreamTile({
                 style={[
                   styles.number,
                   {
-                    color:
-                      key === "failed" && counts.failed > 0
-                        ? colors.alert
-                        : (key === "input" || key === "questions") && needsYou(key)
-                          ? colors.accent
-                          : counts[key] === 0
-                            ? colors.secondary
-                            : colors.foreground,
+                    color: row.keys.some(
+                      (key) => (key === "failed" || key === "limited") && counts[key] > 0,
+                    )
+                      ? colors.alert
+                      : row.keys.some(
+                            (key) => (key === "input" || key === "questions") && needsYou(key),
+                          )
+                        ? colors.accent
+                        : row.values.every((value) => value === 0)
+                          ? colors.secondary
+                          : colors.foreground,
                     fontSize: compactStatus
                       ? Math.max(11, 20 * tileScale)
                       : (large ? 60 : 30) * tileScale,
@@ -157,7 +156,7 @@ export function DreamTile({
                   },
                 ]}
               >
-                {number(counts[key])}
+                {row.values.map(number).join(" / ")}
               </Text>
               <Text
                 numberOfLines={1}
@@ -170,11 +169,11 @@ export function DreamTile({
                   compactStatus && styles.compactStatusText,
                 ]}
               >
-                {DREAM_KPIS[key]}
+                {row.label}
               </Text>
             </View>
           ))}
-          {large && !unavailable && secondaryStatus.length > 0 ? (
+          {large && !compactStatus && !unavailable && secondaryStatus.length > 0 ? (
             <Text
               numberOfLines={2}
               maxFontSizeMultiplier={1.4}
@@ -186,7 +185,12 @@ export function DreamTile({
               }}
             >
               {secondaryStatus.map((key, index) => (
-                <Text key={key} style={key === "failed" ? { color: colors.alert } : undefined}>
+                <Text
+                  key={key}
+                  style={
+                    key === "failed" || key === "limited" ? { color: colors.alert } : undefined
+                  }
+                >
                   {index > 0 ? " · " : ""}
                   {number(counts[key])} {key}
                 </Text>

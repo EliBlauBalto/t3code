@@ -14,8 +14,8 @@ export const DREAM_KPIS = {
   failed: "Failed",
   tokens: "24h tokens",
   cost: "24h cost",
-  limits: "Quota remaining",
-  connections: "Connections",
+  limits: "Quota left",
+  connections: "Machines",
   "": "Empty",
 } as const;
 export type DreamKpi = keyof typeof DREAM_KPIS;
@@ -202,4 +202,75 @@ export function summarizeDreamThreads(threads: readonly EnvironmentThreadShell[]
     } else counts[status]++;
   }
   return counts;
+}
+
+const DREAM_STATUS_LABELS = {
+  working: DREAM_KPIS.working,
+  input: DREAM_KPIS.input,
+  questions: DREAM_KPIS.questions,
+  failed: DREAM_KPIS.failed,
+  limited: "Limited",
+  waiting: "Waiting",
+  finished: DREAM_KPIS.finished,
+} as const;
+
+export function resolveDreamStatusRows(
+  counts: ReturnType<typeof summarizeDreamThreads>,
+  compact: boolean,
+) {
+  type Status = keyof typeof DREAM_STATUS_LABELS;
+  const primary = ["working", "input", "questions", "finished"] as const;
+  const row = (
+    keys: readonly Status[],
+    label: string = DREAM_STATUS_LABELS[keys[0]!],
+    values = keys.map((key) => counts[key]),
+  ) => ({ keys, label, values });
+  if (!compact) return primary.map((key) => row([key]));
+  const statuses = Object.keys(DREAM_STATUS_LABELS) as Status[];
+  const active = statuses.filter((key) => counts[key] > 0);
+  if (active.length > 4) {
+    return [
+      row(["working"]),
+      row(["input", "questions"], "Needs you", [counts.input + counts.questions]),
+      row(["failed", "limited"], "Blocked", [counts.failed + counts.limited]),
+      row(["waiting", "finished"], "Waiting / done"),
+    ];
+  }
+  const visible = [...new Set<Status>([...active, ...primary])].slice(0, 4);
+  return statuses.filter((key) => visible.includes(key)).map((key) => row([key]));
+}
+
+export function resolveDreamClockStatus(counts: ReturnType<typeof summarizeDreamThreads>) {
+  const rows = [
+    { keys: ["failed"] as const, label: "Failed", value: counts.failed },
+    { keys: ["limited"] as const, label: "Limited", value: counts.limited },
+    { keys: ["waiting"] as const, label: "Waiting", value: counts.waiting },
+    { keys: ["working"] as const, label: "Working", value: counts.working },
+    {
+      keys: ["input", "questions"] as const,
+      label: "Need you",
+      value: counts.input + counts.questions,
+    },
+    { keys: ["finished"] as const, label: "Finished", value: counts.finished },
+  ];
+  return rows.filter(
+    (row) =>
+      row.value > 0 ||
+      row.keys[0] === "working" ||
+      row.keys[0] === "input" ||
+      row.keys[0] === "finished",
+  );
+}
+
+export function dreamStatusSummary(
+  counts: ReturnType<typeof summarizeDreamThreads>,
+  partial: boolean,
+  unavailable = false,
+) {
+  return `Session status. ${Object.entries(DREAM_STATUS_LABELS)
+    .map(
+      ([key, label]) =>
+        `${unavailable ? "–" : `${partial ? "~" : ""}${counts[key as keyof typeof counts]}`} ${label.toLowerCase()}`,
+    )
+    .join(". ")}`;
 }

@@ -18,6 +18,10 @@ on:
         description: Include a synthetic failed session in the disposable server
         type: boolean
         default: false
+      status_fixture:
+        description: Focused failed, usage-limited and waiting compact-status captures
+        type: boolean
+        default: false
       app_package:
         description: Package of the existing APK under test
         type: choice
@@ -67,6 +71,7 @@ jobs:
         env:
           T3_STARTUP_OBSERVE_FIXTURE: ${{ inputs.observe_fixture && '1' || '0' }}
           T3_DREAM_FAILED_FIXTURE: ${{ inputs.failed_fixture && '1' || '0' }}
+          T3_DREAM_STATUS_FIXTURE: ${{ inputs.status_fixture && '1' || '0' }}
           T3_DREAM_APP_ID: ${{ inputs.app_package }}
         with:
           api-level: 35

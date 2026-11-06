@@ -263,7 +263,8 @@ public final class StartupInstrumentation extends Instrumentation {
           || clock == null || clock.isEmpty() || !bounds.contains(clock)
           || (failedCount > 0 && !has(view, failedCount + " failed"))) return false;
       if ("Clock".equals(style)) {
-        Rect summary = phraseBounds(root, "need you");
+        Rect summary = phraseBounds(root, "Session status.");
+        if (summary == null) summary = phraseBounds(root, "need you");
         return summary != null && !summary.isEmpty() && bounds.contains(summary);
       }
       Rect status = compactStatus ? phraseBounds(root, "Session status.")
@@ -658,6 +659,72 @@ public final class StartupInstrumentation extends Instrumentation {
         }
         awaitScreen(automation, () -> getContext().startActivity(settings), "Dashboard style");
         result.putString("paired", "PASS");
+        if (fixture.getJSONObject(0).optBoolean("statusFixture", false)) {
+          result.putString("scope", "focused synthetic compact status; standard suite is separate");
+          result.putString("stage", "compact failed, limited and waiting status matrix");
+          String previousFontScale = shell(automation, "settings get system font_scale");
+          boolean allVisible = true;
+          StringBuilder cases = new StringBuilder();
+          try {
+            shell(automation, "wm size 1080x1920");
+            shell(automation, "wm density 480");
+            selectStyle(automation, "Dashboard");
+            selectLargeTile(automation, "Session status", "24h tokens");
+            for (String style : new String[] { "Dashboard", "Focus", "Clock" }) {
+              if ("Focus".equals(style)) {
+                selectLargeTile(automation, "24h tokens", "Session status");
+                selectStyle(automation, "Focus");
+              } else if ("Clock".equals(style)) {
+                selectStyle(automation, "Clock");
+              }
+              for (String fontScale : new String[] { "1.0", "1.5", "2.0" }) {
+                shell(automation, "settings put system font_scale " + fontScale);
+                for (int rotation = 0; rotation < 2; rotation++) {
+                  final boolean landscape = rotation == 1;
+                  automation.setRotation(landscape
+                      ? UiAutomation.ROTATION_FREEZE_90 : UiAutomation.ROTATION_FREEZE_0);
+                  automation.executeAndWaitForEvent(() -> startDream(automation), event -> {
+                    AccessibilityNodeInfo root = automation.getRootInActiveWindow();
+                    if (dismissSystemDialog(automation, screenText(root)) || !dreamVisible(root)) return false;
+                    Rect bounds = new Rect();
+                    root.getBoundsInScreen(bounds);
+                    Rect status = phraseBounds(root, "Clock".equals(style) ? "failed" : "Session status");
+                    Rect live = textBounds(root, "Live");
+                    return (bounds.width() > bounds.height()) == landscape
+                        && status != null && !status.isEmpty() && bounds.contains(status)
+                        && live != null && !live.isEmpty() && bounds.contains(live)
+                        && (!"Dashboard".equals(style) || has(screenText(root), "300K"));
+                  }, 30000);
+                  automation.waitForIdle(100, 30000);
+                  String name = "blocked-" + style.toLowerCase(java.util.Locale.ROOT)
+                      + "-font-" + fontScale.replace('.', '-')
+                      + (landscape ? "-landscape" : "-portrait");
+                  capture(automation, name);
+                  String view = screenText(automation.getRootInActiveWindow());
+                  boolean visible = has(view, "1 limited") && has(view, "1 waiting");
+                  allVisible &= visible;
+                  cases.append(name).append(" limitedAndWaiting=").append(visible).append('\n');
+                  exitDreamToSettings(automation, settings);
+                }
+              }
+            }
+          } finally {
+            shell(automation, "null".equals(previousFontScale)
+                ? "settings delete system font_scale"
+                : "settings put system font_scale " + Float.parseFloat(previousFontScale));
+            try (FileOutputStream output = new FileOutputStream(new File(
+                getContext().getExternalFilesDir(null), "status-visibility.txt"))) {
+              output.write(cases.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+          }
+          restoreSettingsAfterResize(automation, settings, launch);
+          selectStyle(automation, "Dashboard");
+          result.putString("compactStatusCases", cases.toString());
+          if (!allVisible) throw new AssertionError("Compact status lost seeded limited/waiting sessions");
+          result.putString("compactStatusCoverage", "PASS");
+          passed = true;
+          return;
+        }
         result.putString("stage", "live connection changes during an active Dream");
         String connectionControl = fixture.getJSONObject(1).getString("connectionControl");
         shell(automation, "wm size 1080x1920");

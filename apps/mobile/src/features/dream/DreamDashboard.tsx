@@ -8,9 +8,11 @@ import { useUsage } from "../../state/usage";
 import {
   DREAM_DIM_OPACITY,
   dreamClockFontSize,
+  dreamStatusSummary,
   dreamVisibleSlots,
   resolveDreamQuota,
   resolveDreamConnection,
+  resolveDreamClockStatus,
   summarizeDreamThreads,
   type DreamKpi,
   type DreamPalette,
@@ -485,6 +487,10 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
           ) : clockOnly ? (
             <Text
               numberOfLines={2}
+              maxFontSizeMultiplier={1.4}
+              accessibilityLabel={
+                unavailable ? connection.title : dreamStatusSummary(counts, partial)
+              }
               style={{
                 color: colors.secondary,
                 textAlign: "center",
@@ -495,18 +501,20 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
                 transform: shift,
               }}
             >
-              {unavailable ? (
-                connection.title
-              ) : (
-                <>
-                  {`${number(counts.working)}\u00a0working · ${number(counts.input + counts.questions)}\u00a0need\u00a0you · ${number(counts.finished)}\u00a0finished`}
-                  {counts.failed > 0 ? (
-                    <Text style={{ color: colors.alert }}>
-                      {` · ${number(counts.failed)}\u00a0failed`}
+              {unavailable
+                ? connection.title
+                : resolveDreamClockStatus(counts).map((row, index) => (
+                    <Text
+                      key={row.keys.join(":")}
+                      style={
+                        row.keys.some((key) => key === "failed" || key === "limited")
+                          ? { color: colors.alert }
+                          : undefined
+                      }
+                    >
+                      {`${index > 0 ? " · " : ""}${number(row.value)}\u00a0${row.label.toLowerCase().replaceAll(" ", "\u00a0")}`}
                     </Text>
-                  ) : null}
-                </>
-              )}
+                  ))}
             </Text>
           ) : (
             <View

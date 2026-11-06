@@ -86,7 +86,8 @@ try {
     (child) => owned.push(child),
     SHOWCASE_ENVIRONMENTS.slice(0, 2),
   );
-  const failedFixture = process.env.T3_DREAM_FAILED_FIXTURE === "1";
+  const statusFixture = process.env.T3_DREAM_STATUS_FIXTURE === "1";
+  const failedFixture = process.env.T3_DREAM_FAILED_FIXTURE === "1" || statusFixture;
   if (failedFixture) {
     const fixtureThreadId = SHOWCASE_THREADS[0].id;
     // This projection belongs only to this disposable fixture; no provider turn is executed.
@@ -181,6 +182,152 @@ try {
       ) + "\n",
     );
   }
+  if (statusFixture) {
+    const seeded = [];
+    for (const seed of [
+      { environment: 0, threadId: "pocket-command-center", kind: "limited" },
+      { environment: 1, threadId: "buttery-suspense", kind: "waiting" },
+    ] as const) {
+      using database = new NodeSqlite.DatabaseSync(
+        NodePath.join(environments[seed.environment]!.baseDir, "userdata", "statev2.sqlite"),
+      );
+      database.exec("PRAGMA busy_timeout = 5000");
+      const thread = database
+        .prepare(`
+        SELECT provider_instance_id, payload_json FROM orchestration_v2_projection_threads
+        WHERE thread_id = ? AND archived_at IS NULL AND deleted_at IS NULL
+      `)
+        .get(seed.threadId);
+      const message = database
+        .prepare(`
+        SELECT message_id FROM orchestration_v2_projection_messages
+        WHERE thread_id = ? AND role = 'user' ORDER BY created_at DESC LIMIT 1
+      `)
+        .get(seed.threadId);
+      const ordinal = database
+        .prepare(`
+        SELECT COALESCE(MAX(ordinal), 0) + 1 AS ordinal FROM orchestration_v2_projection_runs
+        WHERE thread_id = ?
+      `)
+        .get(seed.threadId)?.ordinal;
+      if (
+        !thread ||
+        typeof thread.payload_json !== "string" ||
+        typeof thread.provider_instance_id !== "string" ||
+        !message ||
+        typeof message.message_id !== "string" ||
+        typeof ordinal !== "number"
+      ) {
+        throw new Error("Missing disposable status-fixture thread, message or ordinal");
+      }
+      const now = new Date().toISOString();
+      const id = `dream-fixture-${seed.kind}`;
+      const run = {
+        id,
+        threadId: seed.threadId,
+        ordinal,
+        providerInstanceId: thread.provider_instance_id,
+        modelSelection: (JSON.parse(thread.payload_json) as { modelSelection: unknown })
+          .modelSelection,
+        providerThreadId: null,
+        userMessageId: message.message_id,
+        rootNodeId: `${id}-node`,
+        activeAttemptId: null,
+        status: seed.kind === "limited" ? "failed" : "running",
+        requestedAt: now,
+        startedAt: now,
+        completedAt: seed.kind === "limited" ? now : null,
+        checkpointId: null,
+        contextHandoffId: null,
+      };
+      const item = {
+        id: `${id}-item`,
+        threadId: seed.threadId,
+        runId: id,
+        nodeId: run.rootNodeId,
+        providerThreadId: null,
+        providerTurnId: null,
+        nativeItemRef: null,
+        parentItemId: null,
+        ordinal: 1,
+        title: seed.kind === "limited" ? "Usage limit reached" : "Waiting for a thread",
+        startedAt: now,
+        completedAt: run.completedAt,
+        updatedAt: now,
+        ...(seed.kind === "limited"
+          ? {
+              type: "error",
+              status: "failed",
+              failure: {
+                class: "usage_limit",
+                message: "Plan limit reached.",
+                code: "usageLimitExceeded",
+                resetAt: "2099-01-01T00:00:00.000Z",
+                retryable: null,
+              },
+            }
+          : {
+              type: "dynamic_tool",
+              status: "waiting",
+              toolName: "mcp__t3_code__t3_thread_wait",
+              input: { threadId: "disposable-status-child" },
+            }),
+      };
+      database
+        .prepare(`
+        INSERT INTO orchestration_v2_projection_runs
+          (run_id, thread_id, ordinal, provider, provider_instance_id, provider_thread_id,
+           status, requested_at, completed_at, payload_json)
+        VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)
+      `)
+        .run(
+          id,
+          seed.threadId,
+          ordinal,
+          run.providerInstanceId,
+          run.providerInstanceId,
+          run.status,
+          now,
+          run.completedAt,
+          JSON.stringify(run),
+        );
+      database
+        .prepare(`
+        INSERT INTO orchestration_v2_projection_turn_items
+          (turn_item_id, thread_id, run_id, node_id, provider_thread_id, provider_turn_id,
+           parent_item_id, ordinal, type, status, updated_at, payload_json)
+        VALUES (?, ?, ?, ?, NULL, NULL, NULL, 1, ?, ?, ?, ?)
+      `)
+        .run(
+          item.id,
+          seed.threadId,
+          id,
+          item.nodeId,
+          item.type,
+          item.status,
+          now,
+          JSON.stringify(item),
+        );
+      seeded.push({ environment: seed.environment, threadId: seed.threadId, run, item });
+    }
+    const output = process.argv[3];
+    if (!output) throw new Error("Disposable status fixture needs an evidence directory");
+    await NodeFSP.writeFile(
+      NodePath.join(output, "status-fixture-seed.json"),
+      JSON.stringify(
+        {
+          synthetic: true,
+          providerTurnsExecuted: 0,
+          expectedFailed: 1,
+          expectedLimited: 1,
+          expectedWaiting: 1,
+          seeded,
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+  }
   let secondOnline = true;
   const proxy = NodeNet.createServer((client) => {
     if (!secondOnline) {
@@ -232,6 +379,7 @@ try {
       address: `http://10.0.2.2:${index === 1 ? ports[0] : environment.port}`,
       code: await issuePairingCredential(environment.baseDir),
       expectedFailed: failedFixture && index === 0 ? 1 : 0,
+      statusFixture,
       connectionControl: index === 1 ? `http://10.0.2.2:${ports[1]}` : undefined,
     })),
   );
