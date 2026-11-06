@@ -262,10 +262,9 @@ export function dreamStatusSummary(
   counts: ReturnType<typeof summarizeDreamThreads>,
   partial: boolean,
 ) {
-  return `Session status. ${Object.entries(DREAM_STATUS_LABELS)
-    .map(
-      ([key, label]) =>
-        `${partial ? "~" : ""}${counts[key as keyof typeof counts]} ${label.toLowerCase()}`,
-    )
+  return `${partial ? "Partial session status" : "Session status"}. ${Object.entries(
+    DREAM_STATUS_LABELS,
+  )
+    .map(([key, label]) => `${counts[key as keyof typeof counts]} ${label.toLowerCase()}`)
     .join(". ")}`;
 }

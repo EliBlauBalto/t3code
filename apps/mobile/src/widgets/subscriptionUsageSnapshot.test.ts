@@ -7,6 +7,7 @@ import {
   type UsageLimitSourceSnapshot,
 } from "@t3tools/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
+import type { LimitPresentations } from "@t3tools/shared/usageLimits";
 import {
   buildSubscriptionUsageSnapshot,
   createWidgetRefresher,
@@ -109,8 +110,18 @@ describe("subscription widget snapshots", () => {
     };
     config.usageLimitSources = [failedSource];
     expect.soft(buildSubscriptionUsageSnapshot(input, deepLink)).toEqual(widgetBeforeSourceFailure);
+    expect
+      .soft(
+        buildSubscriptionUsageSnapshot(input, deepLink, Infinity, {
+          environmentIds: new Set(input.keys()),
+        }),
+      )
+      .toEqual(widgetBeforeSourceFailure);
     expect(
-      buildSubscriptionUsageSnapshot(input, deepLink, Infinity, new Set(input.keys())).providers[0],
+      buildSubscriptionUsageSnapshot(input, deepLink, Infinity, {
+        environmentIds: new Set(input.keys()),
+        qualifyCoverage: true,
+      }).providers[0],
     ).toMatchObject({
       windows: [{ remaining: 60 }],
       partial: true,
@@ -133,12 +144,10 @@ describe("subscription widget snapshots", () => {
           ],
         },
       ];
-      const dream = buildSubscriptionUsageSnapshot(
-        input,
-        deepLink,
-        Infinity,
-        new Set(input.keys()),
-      );
+      const dream = buildSubscriptionUsageSnapshot(input, deepLink, Infinity, {
+        environmentIds: new Set(input.keys()),
+        qualifyCoverage: true,
+      });
       expect
         .soft(dream.providers.some((entry) => entry.partial || entry.windows.length === 0))
         .toBe(true);
@@ -190,12 +199,26 @@ describe("subscription widget snapshots", () => {
     });
     const local = input.get(EnvironmentId.make("env"))!.serverConfig;
     const dreamScope = new Set(input.keys());
-    const authenticatedSnapshot = buildSubscriptionUsageSnapshot(
-      input,
-      deepLink,
-      Infinity,
-      dreamScope,
-    );
+    const authenticatedSnapshot = buildSubscriptionUsageSnapshot(input, deepLink, Infinity, {
+      environmentIds: dreamScope,
+      qualifyCoverage: true,
+    });
+    const pending = new Map<EnvironmentId, NonNullable<ReturnType<LimitPresentations["get"]>>>([
+      ...input,
+      [
+        EnvironmentId.make("pending"),
+        { entry: { target: { label: "Pending" } }, serverConfig: null },
+      ],
+    ]);
+    expect
+      .soft(
+        buildSubscriptionUsageSnapshot(pending, deepLink, Infinity, {
+          environmentIds: new Set(pending.keys()),
+          qualifyCoverage: true,
+        }).providers[0],
+      )
+      .toMatchObject({ windows: [{ remaining: 20 }], partial: true });
+    expect.soft(buildSubscriptionUsageSnapshot(pending, deepLink)).toEqual(snapshot);
     for (const driver of ["codex", "claudeAgent"] as const) {
       const signedOut = provider({
         instanceId: ProviderInstanceId.make(`not-signed-in-${driver}`),
@@ -205,7 +228,12 @@ describe("subscription widget snapshots", () => {
       });
       local.providers = [...local.providers, signedOut];
       expect
-        .soft(buildSubscriptionUsageSnapshot(input, deepLink, Infinity, dreamScope))
+        .soft(
+          buildSubscriptionUsageSnapshot(input, deepLink, Infinity, {
+            environmentIds: dreamScope,
+            qualifyCoverage: true,
+          }),
+        )
         .toEqual(authenticatedSnapshot);
       if (driver === "claudeAgent") {
         expect
@@ -216,7 +244,10 @@ describe("subscription widget snapshots", () => {
     }
     local.providers = [...local.providers, failed];
     expect(
-      buildSubscriptionUsageSnapshot(input, deepLink, Infinity, dreamScope).providers[0],
+      buildSubscriptionUsageSnapshot(input, deepLink, Infinity, {
+        environmentIds: dreamScope,
+        qualifyCoverage: true,
+      }).providers[0],
     ).toMatchObject({
       windows: [{ remaining: 20 }],
       partial: true,
@@ -226,7 +257,12 @@ describe("subscription widget snapshots", () => {
       provider({ ...failed, availability: "unavailable", usageLimits: limits }),
     ];
     expect
-      .soft(buildSubscriptionUsageSnapshot(input, deepLink, Infinity, dreamScope).providers[0])
+      .soft(
+        buildSubscriptionUsageSnapshot(input, deepLink, Infinity, {
+          environmentIds: dreamScope,
+          qualifyCoverage: true,
+        }).providers[0],
+      )
       .toMatchObject({
         windows: [{ remaining: 20 }],
         partial: true,
@@ -245,16 +281,18 @@ describe("subscription widget snapshots", () => {
     ).toBe(50);
     expect
       .soft(
-        buildSubscriptionUsageSnapshot(
-          input,
-          deepLink,
-          Infinity,
-          new Set([EnvironmentId.make("env")]),
-        ).providers[0]?.windows[0]?.remaining,
+        buildSubscriptionUsageSnapshot(input, deepLink, Infinity, {
+          environmentIds: new Set([EnvironmentId.make("env")]),
+        }).providers[0]?.windows[0]?.remaining,
       )
       .toBe(80);
     expect
-      .soft(buildSubscriptionUsageSnapshot(input, deepLink, Infinity, new Set()).providers)
+      .soft(
+        buildSubscriptionUsageSnapshot(input, deepLink, Infinity, {
+          environmentIds: new Set(),
+          qualifyCoverage: true,
+        }).providers,
+      )
       .toEqual([]);
   });
 });

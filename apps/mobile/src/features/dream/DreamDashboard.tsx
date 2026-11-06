@@ -206,7 +206,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
         new Map([...source.presentations].filter(([id]) => source.environmentIds.has(id))),
         "",
         Infinity,
-        source.live,
+        { environmentIds: source.live, qualifyCoverage: true },
       )
     : null;
   const { now, window } = useDreamClock(quotas?.providers.map((provider) => provider.expiresAt));
@@ -415,14 +415,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
       ]}
     >
       {bounds ? (
-        <View
-          // Preserve the native parent when measurement changes opacity and Fabric flattens views.
-          collapsable={false}
-          style={[
-            styles.content,
-            { gap: gap * 1.5, opacity: unavailable || clockOnly || bodySize ? 1 : 0 },
-          ]}
-        >
+        <View collapsable={false} style={[styles.content, { gap: gap * 1.5 }]}>
           <View style={[styles.header, clockOnly && styles.clockHeader, { transform: shift }]}>
             <DreamClockFace
               preferences={preferences}
@@ -515,6 +508,8 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
           ) : (
             <View
               key={bodyKey}
+              // Preserve the measured native parent when opacity changes and Fabric flattens views.
+              collapsable={false}
               onLayout={({ nativeEvent: { layout } }) =>
                 setBody((current) =>
                   current?.key === bodyKey &&
@@ -524,7 +519,10 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
                     : { key: bodyKey, width: layout.width, height: layout.height },
                 )
               }
-              style={[focused ? styles.focus : styles.dashboard, { transform: shift }]}
+              style={[
+                focused ? styles.focus : styles.dashboard,
+                { transform: shift, opacity: bodySize ? 1 : 0 },
+              ]}
             >
               {preferences.slots.slice(0, focused ? 1 : 5).map(card)}
             </View>

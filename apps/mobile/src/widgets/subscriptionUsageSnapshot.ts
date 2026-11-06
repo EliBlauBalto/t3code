@@ -127,12 +127,16 @@ export function buildSubscriptionUsageSnapshot(
   allPresentations: LimitPresentations,
   url: string,
   maxWindowsPerProvider = 6,
-  includedEnvironmentIds: ReadonlySet<EnvironmentId> | null = null,
+  options: {
+    readonly environmentIds?: ReadonlySet<EnvironmentId>;
+    readonly qualifyCoverage?: boolean;
+  } = {},
 ): SubscriptionUsageSnapshot {
+  const { environmentIds, qualifyCoverage = false } = options;
   const presentations =
-    includedEnvironmentIds === null
+    environmentIds === undefined
       ? allPresentations
-      : new Map([...allPresentations].filter(([id]) => includedEnvironmentIds.has(id)));
+      : new Map([...allPresentations].filter(([id]) => environmentIds.has(id)));
   const configuredDrivers = new Set(
     [...presentations.values()].flatMap((presentation) => [
       ...(presentation.serverConfig?.providers ?? [])
@@ -141,11 +145,11 @@ export function buildSubscriptionUsageSnapshot(
           (provider) =>
             provider.enabled &&
             provider.installed &&
-            (includedEnvironmentIds === null || provider.auth.status !== "unauthenticated") &&
+            (!qualifyCoverage || provider.auth.status !== "unauthenticated") &&
             provider.usageLimits?.unavailable?.reason !== "unsupported",
         )
         .map((provider) => provider.driver),
-      ...(includedEnvironmentIds === null
+      ...(!qualifyCoverage
         ? []
         : (presentation.serverConfig?.usageLimitSources ?? []).flatMap((source) =>
             source.accounts
@@ -160,9 +164,11 @@ export function buildSubscriptionUsageSnapshot(
     configuredDrivers,
     maxWindowsPerProvider,
   );
-  if (includedEnvironmentIds === null) return { ...snapshot, url };
-  const sourceUnavailable = [...presentations.values()].some((presentation) =>
-    presentation.serverConfig?.usageLimitSources?.some((source) => Boolean(source.error)),
+  if (!qualifyCoverage) return { ...snapshot, url };
+  const sourceUnavailable = [...presentations.values()].some(
+    (presentation) =>
+      presentation.serverConfig === null ||
+      presentation.serverConfig.usageLimitSources?.some((source) => Boolean(source.error)),
   );
   const unavailable = new Set<string>(
     [...presentations.values()]

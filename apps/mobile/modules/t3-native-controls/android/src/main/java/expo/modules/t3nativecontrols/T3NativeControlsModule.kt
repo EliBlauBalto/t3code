@@ -1,5 +1,6 @@
 package expo.modules.t3nativecontrols
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.provider.Settings
 import android.text.format.DateFormat
@@ -26,14 +27,21 @@ class T3NativeControlsModule : Module() {
     }
 
     Function("openDreamSettings") {
-      val context = appContext.reactContext ?: error("The app is not active.")
-      context.startActivity(
-        Intent(Settings.ACTION_DREAM_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-      )
+      val context = appContext.reactContext ?: return@Function false
+      try {
+        context.startActivity(
+          Intent(Settings.ACTION_DREAM_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+        true
+      } catch (_: ActivityNotFoundException) {
+        false
+      } catch (_: SecurityException) {
+        false
+      }
     }
 
     Function("is24HourFormat") {
-      val context = appContext.reactContext ?: error("The app is not active.")
+      val context = appContext.reactContext ?: return@Function true
       DateFormat.is24HourFormat(context)
     }
 

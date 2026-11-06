@@ -4,7 +4,7 @@ import { Platform } from "react-native";
 export const dreamControls = requireOptionalNativeModule<{
   isDreamSupported?(): boolean;
   is24HourFormat?(): boolean;
-  openDreamSettings(): void;
+  openDreamSettings(): boolean;
 }>("T3NativeControls");
 
 let dreamSupported: boolean | undefined;

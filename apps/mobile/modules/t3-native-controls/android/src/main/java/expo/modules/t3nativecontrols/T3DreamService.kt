@@ -74,8 +74,10 @@ class T3DreamService : DreamService() {
     val context = reactHost?.currentReactContext ?: return
     if (context.hasActiveReactInstance()) {
       val deviceInfo = context.getNativeModule("DeviceInfo") as? LifecycleEventListener ?: run {
-        Log.e("T3DreamService", "RN 0.88 DeviceInfo lifecycle is unavailable for the screen saver")
-        finish()
+        Log.w(
+          "T3DreamService",
+          "React Native DeviceInfo lifecycle is unavailable for the screen saver"
+        )
         return
       }
       deviceInfo.onHostResume()
@@ -126,7 +128,7 @@ class T3DreamService : DreamService() {
     stopTimerLease()
     renderer =
       UIManagerHelper.getUIManager(context, UIManagerType.FABRIC) as? FabricUIManager ?: run {
-        Log.e("T3DreamService", "RN 0.88 FabricUIManager is unavailable for the screen saver")
+        Log.e("T3DreamService", "React Native FabricUIManager is unavailable for the screen saver")
         finish()
         return
       }
@@ -147,7 +149,7 @@ class T3DreamService : DreamService() {
     return if (dispatcher == null) {
       Log.e(
         "T3DreamService",
-        "RN 0.88 Fabric dispatcher lifecycle is unavailable for the screen saver"
+        "React Native Fabric dispatcher lifecycle is unavailable for the screen saver"
       )
       finish()
       false

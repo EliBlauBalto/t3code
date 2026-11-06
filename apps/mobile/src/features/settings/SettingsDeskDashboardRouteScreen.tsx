@@ -1,4 +1,4 @@
-import { Pressable, View } from "react-native";
+import { Alert, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 
@@ -232,7 +232,14 @@ export function SettingsDeskDashboardRouteScreen() {
               <ListActionRow
                 label="Set as screen saver"
                 description="Choose T3 Code in Android settings and enable it while charging."
-                onPress={() => dreamControls?.openDreamSettings()}
+                onPress={() => {
+                  if (dreamControls?.openDreamSettings() === false) {
+                    Alert.alert(
+                      "Screen saver settings unavailable",
+                      "Android couldn't open screen saver settings. Check your device's display settings or try again later.",
+                    );
+                  }
+                }}
               />
               {source.environmentIds.size === 0 && preferences.all ? (
                 <ListActionRow
