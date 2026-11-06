@@ -224,7 +224,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
   const { fontScale } = dimensions;
   const wide = size.width >= 600 && size.width > size.height;
   const scale = Math.max(0.65, Math.min(2, Math.min(size.width / 400, size.height / 680)));
-  const textSpacing = fontScale > 1.5 ? fontScale : 1;
+  const textSpacing = fontScale >= 1.5 ? fontScale : 1;
   const gap = Math.round((16 * scale) / textSpacing);
   const clockOnly = preferences.layout === "clock";
   const focused = preferences.layout === "focus";
@@ -388,118 +388,123 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
         },
       ]}
     >
-      <View style={[styles.content, { gap: gap * 1.5, opacity: bounds ? 1 : 0 }]}>
-        <View style={[styles.header, clockOnly && styles.clockHeader, { transform: shift }]}>
-          <DreamClockFace
-            preferences={preferences}
-            now={now}
-            size={size}
-            colors={colors}
-            scale={scale}
-          />
-          {preferences.showStatus ? (
-            <View style={styles.pill}>
-              <View style={[styles.dot, { backgroundColor: connection.color }]} />
+      {bounds ? (
+        <View style={[styles.content, { gap: gap * 1.5 }]}>
+          <View style={[styles.header, clockOnly && styles.clockHeader, { transform: shift }]}>
+            <DreamClockFace
+              preferences={preferences}
+              now={now}
+              size={size}
+              colors={colors}
+              scale={scale}
+            />
+            {preferences.showStatus ? (
+              <View style={styles.pill}>
+                <View style={[styles.dot, { backgroundColor: connection.color }]} />
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    color: colors.secondary,
+                    fontSize: Math.max(11, 12 * scale),
+                    flexShrink: 1,
+                  }}
+                >
+                  {connection.text}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          {unavailable && !clockOnly ? (
+            <View style={[styles.empty, { transform: shift }]}>
+              <View
+                style={[
+                  styles.emptyMark,
+                  { backgroundColor: themeColorWithAlpha(colors.accent, 0.12) },
+                ]}
+              >
+                <View style={[styles.dot, { backgroundColor: colors.accent }]} />
+              </View>
               <Text
-                numberOfLines={1}
+                numberOfLines={3}
                 style={{
-                  color: colors.secondary,
-                  fontSize: Math.max(11, 12 * scale),
-                  flexShrink: 1,
+                  color: colors.foreground,
+                  fontSize: Math.max(18, 28 * scale),
+                  fontWeight: "300",
+                  textAlign: "center",
                 }}
               >
-                {connection.text}
+                {connection.title}
+              </Text>
+              <Text
+                style={{
+                  color: colors.secondary,
+                  fontSize: Math.max(12, 15 * scale),
+                  lineHeight: 23 * scale,
+                  textAlign: "center",
+                  maxWidth: 380,
+                }}
+              >
+                {connection.detail}
               </Text>
             </View>
-          ) : null}
-        </View>
-        {unavailable && !clockOnly ? (
-          <View style={[styles.empty, { transform: shift }]}>
-            <View
-              style={[
-                styles.emptyMark,
-                { backgroundColor: themeColorWithAlpha(colors.accent, 0.12) },
-              ]}
-            >
-              <View style={[styles.dot, { backgroundColor: colors.accent }]} />
-            </View>
+          ) : clockOnly ? (
             <Text
-              numberOfLines={3}
-              style={{
-                color: colors.foreground,
-                fontSize: Math.max(18, 28 * scale),
-                fontWeight: "300",
-                textAlign: "center",
-              }}
-            >
-              {connection.title}
-            </Text>
-            <Text
+              numberOfLines={2}
               style={{
                 color: colors.secondary,
-                fontSize: Math.max(12, 15 * scale),
-                lineHeight: 23 * scale,
                 textAlign: "center",
-                maxWidth: 380,
+                fontSize: Math.max(12, 14 * scale),
+                paddingVertical: gap,
+                borderTopWidth: 1,
+                borderTopColor: themeColorWithAlpha(colors.foreground, 0.1),
+                transform: shift,
               }}
             >
-              {connection.detail}
+              {unavailable ? (
+                connection.title
+              ) : (
+                <>
+                  {`${number(counts.working)}\u00a0working · ${number(counts.input + counts.questions)}\u00a0need\u00a0you · ${number(counts.finished)}\u00a0finished`}
+                  {counts.failed > 0 ? (
+                    <Text style={{ color: colors.alert }}>
+                      {` · ${number(counts.failed)}\u00a0failed`}
+                    </Text>
+                  ) : null}
+                </>
+              )}
             </Text>
-          </View>
-        ) : clockOnly ? (
-          <Text
-            numberOfLines={2}
-            style={{
-              color: colors.secondary,
-              textAlign: "center",
-              fontSize: Math.max(12, 14 * scale),
-              paddingVertical: gap,
-              borderTopWidth: 1,
-              borderTopColor: themeColorWithAlpha(colors.foreground, 0.1),
-              transform: shift,
-            }}
-          >
-            {unavailable ? (
-              connection.title
-            ) : (
-              <>
-                {`${number(counts.working)}\u00a0working · ${number(counts.input + counts.questions)}\u00a0need\u00a0you · ${number(counts.finished)}\u00a0finished`}
-                {counts.failed > 0 ? (
-                  <Text style={{ color: colors.alert }}>
-                    {` · ${number(counts.failed)}\u00a0failed`}
-                  </Text>
-                ) : null}
-              </>
-            )}
-          </Text>
-        ) : focused ? (
-          <View style={[styles.focus, { transform: shift }]}>
-            {card(preferences.slots[0]!, 0, true)}
-          </View>
-        ) : (
-          <View
-            style={[
-              styles.dashboard,
-              { flexDirection: wide ? "row" : "column", gap, transform: shift },
-            ]}
-          >
-            <View style={{ flex: wide ? 1.15 : 1, minWidth: 0 }}>
+          ) : focused ? (
+            <View style={[styles.focus, { transform: shift }]}>
               {card(preferences.slots[0]!, 0, true)}
             </View>
+          ) : (
             <View
-              style={[styles.smallGrid, { minWidth: 0, flex: wide ? 1 : 0.85 * textSpacing, gap }]}
+              style={[
+                styles.dashboard,
+                { flexDirection: wide ? "row" : "column", gap, transform: shift },
+              ]}
             >
-              {[0, 1].map((row) => (
-                <View key={row} style={[styles.smallRow, { gap }]}>
-                  {preferences.slots
-                    .slice(1 + row * 2, 3 + row * 2)
-                    .map((kpi, column) => card(kpi, 1 + row * 2 + column, false))}
-                </View>
-              ))}
+              <View style={{ flex: wide ? 1.15 : 1, minWidth: 0 }}>
+                {card(preferences.slots[0]!, 0, true)}
+              </View>
+              <View
+                style={[
+                  styles.smallGrid,
+                  { minWidth: 0, flex: wide ? 1 : 0.85 * textSpacing, gap },
+                ]}
+              >
+                {[0, 1].map((row) => (
+                  <View key={row} style={[styles.smallRow, { gap }]}>
+                    {preferences.slots
+                      .slice(1 + row * 2, 3 + row * 2)
+                      .map((kpi, column) => card(kpi, 1 + row * 2 + column, false))}
+                  </View>
+                ))}
+              </View>
             </View>
-          </View>
-        )}
-      </View>
+          )}
+        </View>
+      ) : null}
       {preferences.brightness !== "full" ? (
         <View
           pointerEvents="none"

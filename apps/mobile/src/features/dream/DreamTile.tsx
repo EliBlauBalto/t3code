@@ -92,6 +92,7 @@ export function DreamTile({
               ? themeColorWithAlpha(colors.accent, attention ? 0.09 : 0.045)
               : colors.card,
           borderRadius: large ? 24 : 18,
+          opacity: size ? 1 : 0,
           padding: Math.round((large ? 26 : 16) * tileScale),
           gap: focused ? 16 : large ? 6 : Math.max(2, Math.round(6 * tileScale)),
           justifyContent: focused ? "center" : "space-between",
@@ -263,7 +264,7 @@ const styles = StyleSheet.create({
   focusValue: { justifyContent: "center" },
   focusLabel: { justifyContent: "center" },
   focusStatusGrid: { flex: 0, width: "100%", maxWidth: 480, alignSelf: "center" },
-  focusCompactStatusGrid: { width: "100%", maxWidth: 360 },
+  focusCompactStatusGrid: { width: "100%", maxWidth: 260 },
   focusStatusCell: { alignItems: "center" },
   card: {
     flex: 1,
