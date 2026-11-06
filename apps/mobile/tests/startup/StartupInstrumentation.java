@@ -668,6 +668,8 @@ public final class StartupInstrumentation extends Instrumentation {
           try {
             shell(automation, "wm size 1080x1920");
             shell(automation, "wm density 480");
+            automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
+            restoreSettingsAfterResize(automation, settings, launch);
             selectStyle(automation, "Dashboard");
             selectLargeTile(automation, "Session status", "24h tokens");
             for (String style : new String[] { "Dashboard", "Focus", "Clock" }) {
@@ -680,6 +682,7 @@ public final class StartupInstrumentation extends Instrumentation {
               for (String fontScale : new String[] { "1.0", "1.5", "2.0" }) {
                 shell(automation, "settings put system font_scale " + fontScale);
                 for (int rotation = 0; rotation < 2; rotation++) {
+                  result.putString("stage", "status " + style + " font " + fontScale + " rotation " + rotation);
                   final boolean landscape = rotation == 1;
                   automation.setRotation(landscape
                       ? UiAutomation.ROTATION_FREEZE_90 : UiAutomation.ROTATION_FREEZE_0);
