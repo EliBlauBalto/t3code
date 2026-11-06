@@ -291,12 +291,14 @@ public final class StartupInstrumentation extends Instrumentation {
     for (String label : new String[] {
         "Working", "Requests", "Questions", "Failed", "Limited", "Waiting", "Finished",
         "Need you", "Blocked", "Waiting / done" }) {
-      Rect row = textBounds(root, label);
+      Rect row = statusLabelBounds(root, label);
       if (row == null) continue;
       if (row.isEmpty() || !card.contains(row)) return false;
       visible.add(label);
     }
-    if (visible.size() != 4) return false;
+    if (visible.isEmpty()) {
+      return textBounds(root, "All quiet") != null || textBounds(root, "No alerts reported") != null;
+    }
     String view = screenText(root);
     for (String[] status : new String[][] {
         { "Working", "Working" }, { "Requests", "Need you" },
@@ -309,6 +311,23 @@ public final class StartupInstrumentation extends Instrumentation {
       }
     }
     return true;
+  }
+
+  private Rect statusLabelBounds(AccessibilityNodeInfo node, String label) {
+    if (node == null) return null;
+    String text = node.getText() == null ? "" : node.getText().toString().replace('\u00a0', ' ');
+    if (text.equalsIgnoreCase(label)
+        || java.util.regex.Pattern.compile("(?i)^~?\\d+\\s+" + java.util.regex.Pattern.quote(label) + "$")
+            .matcher(text).matches()) {
+      Rect bounds = new Rect();
+      node.getBoundsInScreen(bounds);
+      return bounds;
+    }
+    for (int index = 0; index < node.getChildCount(); index++) {
+      Rect found = statusLabelBounds(node.getChild(index), label);
+      if (found != null) return found;
+    }
+    return null;
   }
 
   private void tapText(UiAutomation automation, String text) {
@@ -537,7 +556,7 @@ public final class StartupInstrumentation extends Instrumentation {
       capture(automation, "settings-tiles");
       result.putString("customize", "PASS");
       result.putString("stage", "in-app preview");
-      awaitScreen(automation, () -> tapText(automation, "Full-screen preview"), "Connect your first machine");
+      awaitScreen(automation, () -> tapText(automation, "Full-screen preview"), "Sample preview");
       capture(automation, "in-app-preview");
       automation.executeAndWaitForEvent(() -> tapText(automation, "Landscape preview"), event -> {
         AccessibilityNodeInfo option = namedNode(automation.getRootInActiveWindow(), "Landscape preview");
@@ -548,6 +567,9 @@ public final class StartupInstrumentation extends Instrumentation {
       result.putString("preview", "PASS");
       result.putString("stage", "Focus style selection");
       selectStyle(automation, "Focus");
+      awaitScreen(automation, () -> tapText(automation, "Full-screen preview"), "Sample preview");
+      capture(automation, "sample-preview-focus");
+      awaitScreen(automation, () -> tapText(automation, "Close preview"), "Full-screen preview");
       awaitDream(automation, "Connect your first machine");
       if (has(screenText(automation.getRootInActiveWindow()), "24h tokens")) {
         throw new AssertionError("Focus style still renders the small dashboard tiles");
@@ -556,6 +578,9 @@ public final class StartupInstrumentation extends Instrumentation {
       exitDreamToSettings(automation, settings);
       result.putString("stage", "Clock style selection");
       selectStyle(automation, "Clock");
+      awaitScreen(automation, () -> tapText(automation, "Full-screen preview"), "Sample preview");
+      capture(automation, "sample-preview-clock");
+      awaitScreen(automation, () -> tapText(automation, "Close preview"), "Full-screen preview");
       awaitDream(automation, "Connect your first machine");
       capture(automation, "dream-clock");
       automation.executeAndWaitForEvent(
@@ -828,6 +853,25 @@ public final class StartupInstrumentation extends Instrumentation {
         awaitScreen(automation, () -> tapText(automation, "Close preview"), "Full-screen preview");
         scrollTo(automation, "Large tile: Session status");
         capture(automation, "settings-tile-editor-visible");
+        selectStyle(automation, "Focus");
+        selectLargeTile(automation, "Session status", "24h tokens");
+        awaitDream(automation, "300K");
+        capture(automation, "focus-tokens-phone");
+        exitDreamToSettings(automation, settings);
+        selectLargeTile(automation, "24h tokens", "Session status");
+        selectStyle(automation, "Dashboard");
+        for (String palette : new String[] { "Amber night", "Monochrome", "Theme" }) {
+          scrollTo(automation, "Palette: " + palette);
+          automation.executeAndWaitForEvent(() -> tapText(automation, "Palette: " + palette), event -> {
+            AccessibilityNodeInfo option = namedNode(automation.getRootInActiveWindow(), "Palette: " + palette);
+            return option != null && (option.isSelected() || option.isChecked());
+          }, 30000);
+          if (!"Theme".equals(palette)) {
+            awaitDream(automation, "300K");
+            capture(automation, "palette-" + palette.toLowerCase(java.util.Locale.ROOT).replace(' ', '-'));
+            exitDreamToSettings(automation, settings);
+          }
+        }
         scrollTo(automation, "Dashboard style", AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD);
         String[][] sizes = {
           { "phone", "1080x1920", "480", "0" },

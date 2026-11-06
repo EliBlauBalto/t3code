@@ -9,15 +9,13 @@ import {
   summarizeDreamThreads,
   resolveDreamConnection,
   dreamClockFontSize,
-  dreamTileScale,
   resolveDreamQuota,
-  resolveDreamStatusRows,
-  resolveDreamClockStatus,
+  resolveDreamStatus,
 } from "./dreamDashboard";
 
 it("keeps active sessions represented in every status tile and the clock summary", () => {
   const empty = summarizeDreamThreads([]);
-  expect(resolveDreamClockStatus(empty).flatMap((row) => row.keys)).toEqual([
+  expect(resolveDreamStatus(empty).flatMap((row) => row.keys)).toEqual([
     "working",
     "input",
     "questions",
@@ -31,13 +29,7 @@ it("keeps active sessions represented in every status tile and the clock summary
     { ...empty, waiting: 1 },
     { ...empty, failed: 1, limited: 1, waiting: 1 },
   ]) {
-    const rows = resolveDreamStatusRows(counts);
-    const represented = new Set(rows.flatMap((row) => row.keys));
-    expect(rows).toHaveLength(4);
-    for (const [key, count] of Object.entries(counts)) {
-      if (count > 0) expect(represented.has(key as keyof typeof counts)).toBe(true);
-    }
-    const clockKeys = new Set(resolveDreamClockStatus(counts).flatMap((row) => row.keys));
+    const clockKeys = new Set(resolveDreamStatus(counts).flatMap((row) => row.keys));
     for (const [key, count] of Object.entries(counts)) {
       if (count > 0) expect(clockKeys.has(key as keyof typeof counts)).toBe(true);
     }
@@ -51,11 +43,7 @@ it("keeps active sessions represented in every status tile and the clock summary
     waiting: 6,
     finished: 7,
   };
-  const grouped = resolveDreamStatusRows(all);
-  expect(grouped).toHaveLength(4);
-  expect(new Set(grouped.flatMap((row) => row.keys))).toEqual(new Set(Object.keys(all)));
-  expect(grouped.map((row) => row.values)).toEqual([[1], [5], [9], [6, 7]]);
-  expect(new Set(resolveDreamClockStatus(all).flatMap((row) => row.keys))).toEqual(
+  expect(new Set(resolveDreamStatus(all).flatMap((row) => row.keys))).toEqual(
     new Set(Object.keys(all)),
   );
 });
@@ -96,9 +84,7 @@ it("keeps native text sizes positive before layout and during zero-size surface 
     [360, 0],
   ] as const) {
     expect(dreamClockFontSize(width, height)).toBeGreaterThan(0);
-    expect(dreamTileScale(0.8, { width, height }, true, 1)).toBe(0.8);
   }
-  expect(dreamTileScale(0.8, undefined, false, 1)).toBe(0.8);
 });
 
 it("distinguishes missing setup, an empty selection, and disconnected selected machines", () => {

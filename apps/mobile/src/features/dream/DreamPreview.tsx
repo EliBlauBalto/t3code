@@ -7,11 +7,11 @@ import { ListActionRow } from "../../components/ui/ListActionRow";
 import { AppText as Text } from "../../components/ui/AppText";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import { DreamDisplay } from "./DreamDashboard";
+import { DreamSampleScene } from "./DreamScene";
 import type { useDreamSources } from "./useDreamDashboard";
 import { useAppForeground } from "../../lib/appState";
 
 export function DreamPreview({ source }: { readonly source: ReturnType<typeof useDreamSources> }) {
-  const [width, setWidth] = useState(0);
   const [expanded, setExpanded] = useState(false);
   const [orientation, setOrientation] = useState<"portrait" | "landscape">("portrait");
   const [stage, setStage] = useState({ width: 0, height: 0 });
@@ -23,47 +23,17 @@ export function DreamPreview({ source }: { readonly source: ReturnType<typeof us
   const long = Math.max(1, Math.max(window.width, window.height));
   const canvas =
     orientation === "portrait" ? { width: short, height: long } : { width: long, height: short };
-  const thumbnailScale = Math.min(
-    width / Math.max(1, window.width),
-    240 / Math.max(1, window.height),
-  );
+  const sample = source.presentations.size === 0;
   const previewScale = Math.min(stage.width / canvas.width, stage.height / canvas.height);
   return (
     <>
-      <View className="p-3">
-        <View
-          onLayout={({ nativeEvent }) => setWidth(nativeEvent.layout.width)}
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-          pointerEvents="none"
-          style={{
-            alignItems: "center",
-            justifyContent: "center",
-            overflow: "hidden",
-            borderRadius: 20,
-            backgroundColor: "#080808",
-          }}
-        >
-          <View
-            style={{ width: window.width * thumbnailScale, height: window.height * thumbnailScale }}
-          >
-            {width > 0 && focused && foreground && !expanded ? (
-              <View
-                style={{
-                  width: window.width,
-                  height: window.height,
-                  transformOrigin: "top left",
-                  transform: [{ scale: thumbnailScale }],
-                }}
-              >
-                <DreamDisplay source={source} />
-              </View>
-            ) : null}
-          </View>
-        </View>
-      </View>
       <ListActionRow
         label="Full-screen preview"
+        description={
+          sample
+            ? "Sample data until you connect a machine."
+            : "See this style with your selected sessions."
+        }
         disabled={!source.ready}
         onPress={() => {
           setOrientation(window.width > window.height ? "landscape" : "portrait");
@@ -102,7 +72,11 @@ export function DreamPreview({ source }: { readonly source: ReturnType<typeof us
                     transform: [{ scale: previewScale }],
                   }}
                 >
-                  <DreamDisplay source={source} />
+                  {sample ? (
+                    <DreamSampleScene preferences={source.preferences} />
+                  ) : (
+                    <DreamDisplay source={source} />
+                  )}
                 </View>
               </View>
             ) : null}
@@ -154,7 +128,9 @@ export function DreamPreview({ source }: { readonly source: ReturnType<typeof us
               </Pressable>
             </View>
             <Text textRole="caption" className="text-center text-foreground-muted">
-              Layout preview · tap the canvas to close
+              {sample
+                ? "Sample preview. Connect a machine for live status."
+                : "Live preview. Tap the canvas to close."}
             </Text>
           </View>
         </View>

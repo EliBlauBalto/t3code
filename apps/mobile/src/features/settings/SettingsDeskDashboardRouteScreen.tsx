@@ -52,7 +52,11 @@ function LayoutChoice(props: {
   readonly onSelect: (layout: DreamLayout) => void;
 }) {
   return (
-    <View className="flex-row gap-2 p-3">
+    <View
+      accessibilityRole="radiogroup"
+      accessibilityLabel="Screen saver style"
+      className="flex-row gap-2 p-3"
+    >
       {options(DREAM_LAYOUTS).map(({ value, label }) => (
         <Pressable
           key={value}
@@ -62,11 +66,92 @@ function LayoutChoice(props: {
           disabled={props.disabled}
           onPress={() => props.onSelect(value)}
           className={cn(
-            "min-h-12 flex-1 items-center justify-center rounded-full border px-2 py-3 active:opacity-70",
+            "flex-1 items-center gap-3 rounded-2xl border p-2 pb-3 active:opacity-70",
             props.selected === value ? "border-primary bg-primary/10" : "border-border-subtle",
             props.disabled && "opacity-45",
           )}
         >
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            pointerEvents="none"
+            style={{
+              width: "100%",
+              height: 92,
+              borderRadius: 10,
+              padding: 9,
+              backgroundColor: "#0b0c0f",
+              overflow: "hidden",
+            }}
+          >
+            {value === "dashboard" ? (
+              <View style={{ flex: 1, gap: 5 }}>
+                <Text
+                  allowFontScaling={false}
+                  style={{ color: "#e8e8e8", fontSize: 11, fontWeight: "300" }}
+                >
+                  10:24
+                </Text>
+                <View
+                  style={{
+                    height: 20,
+                    borderRadius: 4,
+                    backgroundColor: "#24262d",
+                    paddingHorizontal: 6,
+                    justifyContent: "center",
+                  }}
+                >
+                  <View
+                    style={{ width: 22, height: 3, borderRadius: 2, backgroundColor: "#a6b9f2" }}
+                  />
+                </View>
+                <View style={{ flex: 1, flexDirection: "row", gap: 4 }}>
+                  {[0, 1].map((column) => (
+                    <View key={column} style={{ flex: 1, gap: 4 }}>
+                      {[0, 1].map((row) => (
+                        <View
+                          key={row}
+                          style={{ flex: 1, borderRadius: 3, backgroundColor: "#1c1e24" }}
+                        />
+                      ))}
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : value === "focus" ? (
+              <View style={{ flex: 1 }}>
+                <Text
+                  allowFontScaling={false}
+                  style={{ color: "#858994", fontSize: 9, fontWeight: "300" }}
+                >
+                  10:24
+                </Text>
+                <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 4 }}>
+                  <Text
+                    allowFontScaling={false}
+                    style={{ color: "#a6b9f2", fontSize: 38, lineHeight: 42, fontWeight: "300" }}
+                  >
+                    1
+                  </Text>
+                  <View
+                    style={{ width: 26, height: 3, borderRadius: 2, backgroundColor: "#858994" }}
+                  />
+                </View>
+              </View>
+            ) : (
+              <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 8 }}>
+                <Text
+                  allowFontScaling={false}
+                  style={{ color: "#e8e8e8", fontSize: 25, fontWeight: "200", letterSpacing: -1 }}
+                >
+                  10:24
+                </Text>
+                <View
+                  style={{ width: 30, height: 2, borderRadius: 1, backgroundColor: "#858994" }}
+                />
+              </View>
+            )}
+          </View>
           <Text
             numberOfLines={1}
             adjustsFontSizeToFit

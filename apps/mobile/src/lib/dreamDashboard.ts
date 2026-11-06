@@ -97,21 +97,6 @@ export function dreamClockFontSize(width: number, height: number) {
   return Math.max(48, Math.min(width * 0.31, height * 0.32, 240));
 }
 
-export function dreamTileScale(
-  scale: number,
-  size: { readonly width: number; readonly height: number } | undefined,
-  statusGrid: boolean,
-  fontScale: number,
-) {
-  return size && size.width > 0 && size.height > 0
-    ? Math.min(
-        scale,
-        size.height / ((statusGrid ? 310 : 150) * Math.max(1, fontScale)),
-        size.width / (statusGrid ? 260 : 155),
-      )
-    : scale;
-}
-
 export function resolveDreamConnection(source: {
   readonly ready: boolean;
   readonly configured: number;
@@ -214,29 +199,7 @@ const DREAM_STATUS_LABELS = {
   finished: DREAM_KPIS.finished,
 } as const;
 
-export function resolveDreamStatusRows(counts: ReturnType<typeof summarizeDreamThreads>) {
-  type Status = keyof typeof DREAM_STATUS_LABELS;
-  const primary = ["working", "input", "questions", "finished"] as const;
-  const row = (
-    keys: readonly Status[],
-    label: string = DREAM_STATUS_LABELS[keys[0]!],
-    values = keys.map((key) => counts[key]),
-  ) => ({ keys, label, values });
-  const statuses = Object.keys(DREAM_STATUS_LABELS) as Status[];
-  const active = statuses.filter((key) => counts[key] > 0);
-  if (active.length > 4) {
-    return [
-      row(["working"]),
-      row(["input", "questions"], "Need you", [counts.input + counts.questions]),
-      row(["failed", "limited"], "Blocked", [counts.failed + counts.limited]),
-      row(["waiting", "finished"], "Waiting / done"),
-    ];
-  }
-  const visible = [...new Set<Status>([...active, ...primary])].slice(0, 4);
-  return statuses.filter((key) => visible.includes(key)).map((key) => row([key]));
-}
-
-export function resolveDreamClockStatus(counts: ReturnType<typeof summarizeDreamThreads>) {
+export function resolveDreamStatus(counts: ReturnType<typeof summarizeDreamThreads>) {
   const rows = [
     { keys: ["failed"] as const, label: "Failed", value: counts.failed },
     { keys: ["limited"] as const, label: "Limited", value: counts.limited },

@@ -2,8 +2,7 @@ import { StyleSheet, Text, View } from "react-native";
 import {
   DREAM_KPIS,
   dreamStatusSummary,
-  dreamTileScale,
-  resolveDreamStatusRows,
+  resolveDreamStatus,
   type DreamKpi,
   type summarizeDreamThreads,
 } from "../../lib/dreamDashboard";
@@ -41,230 +40,234 @@ export function DreamTile({
     readonly progress?: number | null;
   };
 }) {
-  const number = (value: number) => `${partial ? "~" : ""}${value}`;
-  const needsYou = (kpi: "input" | "questions") => counts[kpi] > 0;
   if (kpi === "") return <View style={[styles.card, frame]} />;
-  const tileScale = dreamTileScale(scale, frame, large && kpi === "status", fontScale);
-  const compactStatus = kpi === "status" && (!large || frame.height < 180);
-  const statusRows = kpi === "status" ? resolveDreamStatusRows(counts) : [];
-  const danger = value.alert || (kpi === "status" && (counts.failed > 0 || counts.limited > 0));
-  const attention =
+  const rows = resolveDreamStatus(counts).filter((row) => row.value > 0);
+  const lead =
+    rows.find((row) => row.keys.some((key) => key === "failed" || key === "limited")) ??
+    rows.find((row) => row.keys.some((key) => key === "input" || key === "questions")) ??
+    rows.find((row) => row.keys[0] === "working") ??
+    rows[0];
+  const supporting = rows.filter((row) => row !== lead);
+  const leadAlert = lead?.keys.some((key) => key === "failed" || key === "limited");
+  const leadAttention = lead?.keys.some((key) => key === "input" || key === "questions");
+  const highlight =
     kpi === "status"
-      ? needsYou("input") || needsYou("questions") || counts.failed > 0 || counts.limited > 0
-      : kpi === "input" || kpi === "questions"
-        ? needsYou(kpi)
-        : value.alert;
-  const valueColor = value.alert
-    ? colors.alert
-    : (kpi === "input" || kpi === "questions") && needsYou(kpi)
-      ? colors.accent
-      : colors.foreground;
+      ? leadAlert
+        ? colors.alert
+        : leadAttention
+          ? colors.accent
+          : colors.foreground
+      : value.alert
+        ? colors.alert
+        : colors.foreground;
+  const padding = focused ? 12 : Math.max(12, Math.min(28, frame.width * 0.07));
+  const numericScale = Math.min(fontScale, 1.4);
+  const numberSize =
+    (focused
+      ? Math.min(280, frame.width * 0.42, frame.height * 0.37)
+      : large
+        ? Math.min(112, frame.height * 0.38, frame.width * 0.24)
+        : Math.min(96, frame.width * 0.29, frame.height * 0.34)) / numericScale;
+  const labelSize = Math.max(11, Math.min(focused ? 18 : 14, 12 * scale));
+  const detailSize = Math.max(11, Math.min(focused ? 20 : 14, 12 * scale));
+  const title = DREAM_KPIS[kpi];
+  const summary =
+    kpi === "status"
+      ? dreamStatusSummary(counts, partial)
+      : `${title}. ${value.value}. ${value.detail}`;
   return (
     <View
-      accessible={kpi === "status"}
-      accessibilityLabel={kpi === "status" ? dreamStatusSummary(counts, partial) : undefined}
+      accessible
+      accessibilityLabel={summary}
       style={[
         styles.card,
         frame,
         {
-          backgroundColor: focused
-            ? "transparent"
-            : large
-              ? themeColorWithAlpha(colors.accent, attention ? 0.09 : 0.045)
-              : colors.card,
-          borderRadius: large ? 24 : 18,
-          padding: Math.round((large ? 26 : 16) * tileScale),
-          gap: focused ? 16 : large ? 6 : Math.max(2, Math.round(6 * tileScale)),
-          justifyContent: focused ? "center" : "space-between",
+          backgroundColor: focused ? "transparent" : colors.card,
           borderWidth: focused ? 0 : 1,
-          borderColor: attention
-            ? themeColorWithAlpha(danger ? colors.alert : colors.accent, 0.55)
-            : themeColorWithAlpha(colors.foreground, 0.07),
+          borderColor: themeColorWithAlpha(colors.foreground, 0.07),
+          borderRadius: large ? 24 : 20,
+          padding,
+          justifyContent: focused ? "center" : "flex-start",
+          gap: focused ? 18 : 8,
         },
       ]}
     >
-      {large || !compactStatus ? (
-        <View style={[styles.cardLabel, focused && styles.focusLabel]}>
-          <Text
-            numberOfLines={1}
-            maxFontSizeMultiplier={1.4}
-            style={[
-              styles.label,
-              { color: colors.secondary, fontSize: Math.max(11, (large ? 13 : 11) * tileScale) },
-            ]}
-          >
-            {DREAM_KPIS[kpi]}
-          </Text>
-          {attention ? (
-            <View
+      <Text
+        numberOfLines={1}
+        maxFontSizeMultiplier={1.4}
+        style={[
+          styles.label,
+          { color: colors.secondary, fontSize: labelSize, textAlign: focused ? "center" : "left" },
+        ]}
+      >
+        {title}
+      </Text>
+      <View
+        style={[
+          styles.reading,
+          { gap: focused ? 20 : 8 },
+          focused && [styles.centered, { flex: 0, width: "100%" }],
+        ]}
+      >
+        {kpi === "status" ? (
+          <>
+            {lead ? (
+              <View style={[styles.statusLead, focused && styles.focusLead]}>
+                <Text
+                  adjustsFontSizeToFit
+                  numberOfLines={1}
+                  maxFontSizeMultiplier={1.4}
+                  style={[
+                    styles.number,
+                    {
+                      color: highlight,
+                      fontSize: numberSize,
+                      textAlign: focused ? "center" : "left",
+                    },
+                  ]}
+                >
+                  {`${partial ? "~" : ""}${lead.value}`}
+                </Text>
+                <Text
+                  adjustsFontSizeToFit
+                  numberOfLines={1}
+                  maxFontSizeMultiplier={1.4}
+                  style={{
+                    color: highlight,
+                    fontWeight: "400",
+                    fontSize: Math.max(
+                      15,
+                      Math.min(focused ? 52 : large ? 32 : 22, numberSize * 0.42),
+                    ),
+                    flexShrink: 1,
+                  }}
+                >
+                  {lead.label}
+                </Text>
+              </View>
+            ) : (
+              <View style={{ gap: 10, alignItems: focused ? "center" : "flex-start" }}>
+                <View
+                  style={{
+                    width: 30,
+                    height: 3,
+                    borderRadius: 2,
+                    backgroundColor: colors.accent,
+                    marginBottom: 8,
+                  }}
+                />
+                <Text
+                  numberOfLines={2}
+                  adjustsFontSizeToFit
+                  maxFontSizeMultiplier={1.4}
+                  style={{
+                    color: colors.foreground,
+                    fontWeight: "300",
+                    fontSize: Math.max(22, numberSize * 0.6),
+                    textAlign: focused ? "center" : "left",
+                  }}
+                >
+                  {partial ? "No alerts reported" : "All quiet"}
+                </Text>
+                <Text
+                  maxFontSizeMultiplier={1.4}
+                  style={{ color: colors.secondary, fontSize: Math.max(11, 13 * scale) }}
+                >
+                  {partial ? "Partial session status" : "Nothing needs your attention"}
+                </Text>
+              </View>
+            )}
+            {supporting.length > 0 ? (
+              <View
+                style={[styles.supporting, focused && styles.centered, { gap: focused ? 18 : 12 }]}
+              >
+                {supporting.map((row) => (
+                  <Text
+                    key={row.keys.join(":")}
+                    numberOfLines={1}
+                    maxFontSizeMultiplier={1.4}
+                    style={{
+                      color: row.keys.some((key) => key === "failed" || key === "limited")
+                        ? colors.alert
+                        : colors.secondary,
+                      fontSize: Math.max(11, Math.min(focused ? 22 : 15, 13 * scale)),
+                    }}
+                  >
+                    {`${partial ? "~" : ""}${row.value}\u00a0${row.label.toLowerCase().replaceAll(" ", "\u00a0")}`}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <Text
+              adjustsFontSizeToFit
+              numberOfLines={1}
+              maxFontSizeMultiplier={1.4}
               style={[
-                styles.dot,
-                {
-                  backgroundColor: danger ? colors.alert : colors.accent,
-                },
-              ]}
-            />
-          ) : null}
-        </View>
-      ) : null}
-      {kpi === "status" ? (
-        <View
-          style={[
-            styles.statusGrid,
-            compactStatus && styles.compactStatusGrid,
-            focused && styles.focusStatusGrid,
-            focused && compactStatus && styles.focusCompactStatusGrid,
-          ]}
-        >
-          {statusRows.map((row) => (
-            <View
-              key={row.keys.join(":")}
-              style={[
-                styles.statusCell,
-                compactStatus && styles.compactStatusCell,
-                focused && styles.focusStatusCell,
+                styles.number,
+                { color: highlight, fontSize: numberSize, textAlign: focused ? "center" : "left" },
               ]}
             >
-              <Text
-                adjustsFontSizeToFit
-                numberOfLines={1}
-                style={[
-                  styles.number,
-                  {
-                    color: row.keys.some(
-                      (key) => (key === "failed" || key === "limited") && counts[key] > 0,
-                    )
-                      ? colors.alert
-                      : row.keys.some(
-                            (key) => (key === "input" || key === "questions") && needsYou(key),
-                          )
-                        ? colors.accent
-                        : row.values.every((value) => value === 0)
-                          ? colors.secondary
-                          : colors.foreground,
-                    fontSize: compactStatus
-                      ? Math.max(11, 20 * tileScale)
-                      : (large ? 60 : 30) * tileScale,
-                    fontWeight: compactStatus ? "500" : "300",
-                  },
-                ]}
-              >
-                {row.values.map(number).join(" / ")}
-              </Text>
-              <Text
-                numberOfLines={1}
-                maxFontSizeMultiplier={1.4}
-                style={[
-                  {
-                    color: colors.secondary,
-                    fontSize: Math.max(11, (large ? 14 : 11) * tileScale),
-                  },
-                  compactStatus && styles.compactStatusText,
-                ]}
-              >
-                {row.label}
-              </Text>
-            </View>
-          ))}
-        </View>
-      ) : (
-        <View
-          style={[
-            styles.cardValue,
-            !large && { gap: Math.max(2, Math.round(4 * tileScale)) },
-            focused && styles.focusValue,
-          ]}
-        >
-          <Text
-            adjustsFontSizeToFit
-            numberOfLines={1}
-            style={[
-              styles.number,
-              {
-                color: valueColor,
-                fontSize: (large ? (focused ? 116 : 88) : 44) * tileScale,
-                textAlign: focused ? "center" : "left",
-              },
-            ]}
-          >
-            {value.value}
-          </Text>
-          {kpi === "limits" && typeof value.progress === "number" ? (
-            <View
-              style={[
-                styles.track,
-                { backgroundColor: themeColorWithAlpha(colors.foreground, 0.12) },
-              ]}
-            >
+              {value.value}
+            </Text>
+            {kpi === "limits" && typeof value.progress === "number" ? (
               <View
                 style={[
-                  styles.fill,
+                  styles.track,
                   {
-                    width: `${value.progress}%`,
-                    backgroundColor: value.alert ? colors.alert : colors.accent,
+                    backgroundColor: themeColorWithAlpha(colors.foreground, 0.1),
+                    maxWidth: focused ? 320 : undefined,
                   },
                 ]}
-              />
-            </View>
-          ) : null}
-          <Text
-            numberOfLines={2}
-            maxFontSizeMultiplier={1.4}
-            style={{
-              color: colors.secondary,
-              fontSize: Math.max(10, (large ? 13 : 11) * tileScale),
-              textAlign: focused ? "center" : "left",
-            }}
-          >
-            {value.detail}
-          </Text>
-        </View>
-      )}
+              >
+                <View
+                  style={{
+                    height: 4,
+                    width: `${value.progress}%`,
+                    backgroundColor: highlight === colors.alert ? colors.alert : colors.accent,
+                    borderRadius: 2,
+                  }}
+                />
+              </View>
+            ) : (
+              <View style={{ height: 4, marginVertical: 2 }} />
+            )}
+            <Text
+              numberOfLines={2}
+              maxFontSizeMultiplier={1.4}
+              style={{
+                color: colors.secondary,
+                fontSize: detailSize,
+                lineHeight: detailSize * 1.4,
+                height: focused ? undefined : Math.ceil(detailSize * 1.4 * numericScale * 2),
+                textAlign: focused ? "center" : "left",
+              }}
+            >
+              {value.detail}
+            </Text>
+          </>
+        )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  focusValue: { justifyContent: "center" },
-  focusLabel: { justifyContent: "center" },
-  focusStatusGrid: { flex: 0, width: "100%", maxWidth: 480, alignSelf: "center" },
-  focusCompactStatusGrid: { width: "100%", maxWidth: 260 },
-  focusStatusCell: { alignItems: "center" },
-  card: {
-    position: "absolute",
-    minWidth: 0,
-    borderWidth: 1,
-    borderColor: "transparent",
-    justifyContent: "space-between",
-    gap: 6,
-    overflow: "hidden",
-  },
-  cardLabel: { flexDirection: "row", alignItems: "center", gap: 8 },
-  label: { letterSpacing: 0.8, textTransform: "uppercase", flexShrink: 1 },
-  cardValue: { gap: 8 },
+  card: { position: "absolute", minWidth: 0, overflow: "hidden" },
+  label: { letterSpacing: 1.1, textTransform: "uppercase", fontWeight: "500", flexShrink: 1 },
+  reading: { flex: 1, justifyContent: "center", minHeight: 0 },
+  centered: { alignItems: "center", justifyContent: "center" },
   number: {
     fontWeight: "300",
     fontVariant: ["tabular-nums"],
-    flexShrink: 1,
     includeFontPadding: false,
+    flexShrink: 1,
   },
-  track: { height: 6, borderRadius: 3, overflow: "hidden" },
-  fill: { height: 6, borderRadius: 3 },
-  statusGrid: { flexDirection: "row", flexWrap: "wrap", flex: 1, alignContent: "center" },
-  statusCell: { width: "50%", paddingVertical: 4 },
-  compactStatusGrid: {
-    flexDirection: "column",
-    flexWrap: "nowrap",
-    justifyContent: "space-evenly",
-  },
-  compactStatusCell: {
-    width: "100%",
-    flexDirection: "row-reverse",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 0,
-    gap: 4,
-  },
-  compactStatusText: { includeFontPadding: false, flexShrink: 1 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
+  statusLead: { flexDirection: "row", alignItems: "baseline", gap: 12, minWidth: 0 },
+  focusLead: { flexDirection: "column", alignItems: "center", gap: 8 },
+  supporting: { flexDirection: "row", flexWrap: "wrap", alignItems: "center" },
+  track: { height: 4, borderRadius: 2, overflow: "hidden", width: "100%", marginVertical: 2 },
 });
