@@ -1,6 +1,8 @@
 // @effect-diagnostics nodeBuiltinImport:off globalDate:off - Owns disposable fixture servers and the native test runner.
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFSP from "node:fs/promises";
+import * as NodeHttp from "node:http";
+import * as NodeNet from "node:net";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import * as NodeSqlite from "node:sqlite";
@@ -10,6 +12,8 @@ import { startShowcaseEnvironments, issuePairingCredential } from "./mobile-show
 import { SHOWCASE_ENVIRONMENTS, SHOWCASE_THREADS } from "./mobile-showcase-environment.ts";
 
 const owned: NodeChildProcess.ChildProcess[] = [];
+const fixtureSockets = new Set<NodeNet.Socket>();
+const fixtureListeners: Array<NodeNet.Server | NodeHttp.Server> = [];
 const waitForExit = (child: NodeChildProcess.ChildProcess) =>
   new Promise<number | null>((resolve, reject) => {
     child.once("error", reject);
@@ -177,11 +181,58 @@ try {
       ) + "\n",
     );
   }
+  let secondOnline = true;
+  const proxy = NodeNet.createServer((client) => {
+    if (!secondOnline) {
+      client.destroy();
+      return;
+    }
+    const upstream = NodeNet.connect(environments[1]!.port, "127.0.0.1");
+    for (const socket of [client, upstream]) {
+      fixtureSockets.add(socket);
+      socket.once("close", () => {
+        fixtureSockets.delete(socket);
+        client.destroy();
+        upstream.destroy();
+      });
+      socket.on("error", () => socket.destroy());
+    }
+    client.pipe(upstream);
+    upstream.pipe(client);
+  });
+  const control = NodeHttp.createServer((request, response) => {
+    if (request.method !== "POST" || !["/offline", "/online"].includes(request.url ?? "")) {
+      response.writeHead(404).end();
+      return;
+    }
+    secondOnline = request.url === "/online";
+    if (!secondOnline) for (const socket of fixtureSockets) socket.destroy();
+    response.setHeader("Content-Type", "application/json");
+    response.end(JSON.stringify({ synthetic: true, online: secondOnline }));
+  });
+  const ports = await Promise.all(
+    [proxy, control].map(
+      (listener) =>
+        new Promise<number>((resolve, reject) => {
+          fixtureListeners.push(listener);
+          listener.once("error", reject);
+          listener.listen(0, "127.0.0.1", () => {
+            const address = listener.address();
+            if (address === null || typeof address === "string") {
+              reject(new Error("Disposable connection fixture has no TCP port"));
+              return;
+            }
+            resolve(address.port);
+          });
+        }),
+    ),
+  );
   const fixture = await Promise.all(
     environments.map(async (environment, index) => ({
-      address: `http://10.0.2.2:${environment.port}`,
+      address: `http://10.0.2.2:${index === 1 ? ports[0] : environment.port}`,
       code: await issuePairingCredential(environment.baseDir),
       expectedFailed: failedFixture && index === 0 ? 1 : 0,
+      connectionControl: index === 1 ? `http://10.0.2.2:${ports[1]}` : undefined,
     })),
   );
   const runner = NodeChildProcess.spawn(
@@ -198,6 +249,12 @@ try {
   const code = await waitForExit(runner);
   process.exitCode = code ?? 1;
 } finally {
+  for (const socket of fixtureSockets) socket.destroy();
+  await Promise.all(
+    fixtureListeners.map(
+      (listener) => new Promise<void>((resolve) => listener.close(() => resolve())),
+    ),
+  );
   await Promise.all(
     owned
       .filter((child) => child.exitCode === null && child.signalCode === null)

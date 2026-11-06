@@ -21,6 +21,24 @@ import java.io.InputStreamReader;
 
 public final class StartupInstrumentation extends Instrumentation {
   private org.json.JSONArray fixture;
+  private void setFixtureConnection(String control, boolean online) {
+    java.net.HttpURLConnection connection = null;
+    try {
+      connection = (java.net.HttpURLConnection) new java.net.URL(
+          control + (online ? "/online" : "/offline")).openConnection();
+      connection.setRequestMethod("POST");
+      connection.setConnectTimeout(10000);
+      connection.setReadTimeout(10000);
+      if (connection.getResponseCode() != 200) throw new AssertionError("Fixture control rejected");
+      try (java.io.InputStream input = connection.getInputStream()) {
+        while (input.read() != -1) { }
+      }
+    } catch (java.io.IOException error) {
+      throw new AssertionError("Disposable connection control failed", error);
+    } finally {
+      if (connection != null) connection.disconnect();
+    }
+  }
   private String appId = "com.t3tools.t3code.dream";
   private String appScheme = "t3code-dream";
   private ComponentName dreamSettings() throws Exception {
@@ -640,6 +658,76 @@ public final class StartupInstrumentation extends Instrumentation {
         }
         awaitScreen(automation, () -> getContext().startActivity(settings), "Dashboard style");
         result.putString("paired", "PASS");
+        result.putString("stage", "live connection changes during an active Dream");
+        String connectionControl = fixture.getJSONObject(1).getString("connectionControl");
+        shell(automation, "wm size 1080x1920");
+        shell(automation, "wm density 480");
+        automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
+        awaitPopulatedLayout(automation, "Dashboard", false, false, false, failedCount);
+        String connectionPid = shell(automation, "pidof " + appId);
+        try (BufferedReader recording = new BufferedReader(new InputStreamReader(
+            new ParcelFileDescriptor.AutoCloseInputStream(automation.executeShellCommand(
+                "screenrecord --time-limit 20 --bit-rate 2000000 "
+                    + new File(getContext().getExternalFilesDir(null),
+                        "connection-transitions.mp4").getAbsolutePath()))))) {
+          capture(automation, "connection-live-before");
+          for (boolean online : new boolean[] { false, true }) {
+            automation.executeAndWaitForEvent(() -> setFixtureConnection(connectionControl, online), event -> {
+              AccessibilityNodeInfo root = automation.getRootInActiveWindow();
+              String view = screenText(root);
+              if (dismissSystemDialog(automation, view) || !dreamVisible(root)) return false;
+              Rect bounds = new Rect();
+              root.getBoundsInScreen(bounds);
+              Rect tokens = textBounds(root, "24h tokens");
+              return has(view, online ? "Live" : "1 of 2 machines live")
+                  && has(view, online ? "300K" : "150K")
+                  && has(view, online ? "$0.96" : "$0.48")
+                  && !clockText(automation).isEmpty()
+                  && tokens != null && !tokens.isEmpty() && bounds.contains(tokens);
+            }, 30000);
+            capture(automation, online ? "connection-live-restored" : "connection-partial");
+          }
+          result.putString("connectionTransitions", "PASS");
+          result.putString("stage", "rotate populated Dream in place");
+          for (boolean landscape : new boolean[] { true, false }) {
+            automation.executeAndWaitForEvent(() -> automation.setRotation(landscape
+                ? UiAutomation.ROTATION_FREEZE_90 : UiAutomation.ROTATION_FREEZE_0), event -> {
+              AccessibilityNodeInfo root = automation.getRootInActiveWindow();
+              if (!dreamVisible(root)) return false;
+              Rect bounds = new Rect();
+              root.getBoundsInScreen(bounds);
+              Rect status = textBounds(root, "Session status");
+              Rect tokens = textBounds(root, "24h tokens");
+              String view = screenText(root);
+              return (bounds.width() > bounds.height()) == landscape
+                  && status != null && !status.isEmpty() && bounds.contains(status)
+                  && tokens != null && !tokens.isEmpty() && bounds.contains(tokens)
+                  && (!landscape || tokens.left > status.right)
+                  && has(view, "300K") && has(view, "$0.96") && has(view, "36%");
+            }, 30000);
+            capture(automation, landscape ? "active-rotation-landscape" : "active-rotation-portrait");
+          }
+          if (!connectionPid.equals(shell(automation, "pidof " + appId))) {
+            throw new AssertionError("Connection/rotation test restarted the app process");
+          }
+          result.putString("activeDreamRotation", "PASS");
+          try (FileOutputStream file = new FileOutputStream(new File(
+              getContext().getExternalFilesDir(null), "connection-recording.txt"))) {
+            file.write(recording.lines().collect(java.util.stream.Collectors.joining("\n"))
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+          }
+        } finally {
+          setFixtureConnection(connectionControl, true);
+        }
+        exitDreamToSettings(automation, settings);
+        scrollTo(automation, "Full-screen preview", AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD);
+        capture(automation, "populated-settings-preview");
+        awaitScreen(automation, () -> tapText(automation, "Full-screen preview"), "300K");
+        capture(automation, "populated-in-app-preview");
+        awaitScreen(automation, () -> tapText(automation, "Close preview"), "Full-screen preview");
+        scrollTo(automation, "Large tile: Session status");
+        capture(automation, "settings-tile-editor-visible");
+        scrollTo(automation, "Dashboard style", AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD);
         String[][] sizes = {
           { "phone", "1080x1920", "480", "0" },
           { "phone-landscape", "1080x1920", "480", "1" },

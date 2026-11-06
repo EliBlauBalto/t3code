@@ -17,12 +17,13 @@ build_tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d 
 cat > "$output/AndroidManifest.xml" <<XML
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.t3tools.startuptest">
   <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="35" />
+  <uses-permission android:name="android.permission.INTERNET" />
   <queries>
     <package android:name="com.t3tools.t3code.dream" />
     <package android:name="com.t3tools.t3code" />
     <intent><action android:name="android.settings.DREAM_SETTINGS" /></intent>
   </queries>
-  <application android:label="Release startup test" />
+  <application android:label="Release startup test" android:usesCleartextTraffic="true" />
   <instrumentation android:name="com.t3tools.startuptest.StartupInstrumentation" android:targetPackage="com.t3tools.startuptest" />
   <instrumentation android:name="com.t3tools.startuptest.DreamReloadInstrumentation" android:targetPackage="$app_id" />
 </manifest>

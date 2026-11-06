@@ -349,7 +349,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
     },
     live: { text: "Live", title: "", detail: "", color: STATUS_COLORS.live },
   }[connectionState];
-  const bodyKey = `${preferences.layout}:${size.width}:${size.height}:${fontScale}:${connection.text}`;
+  const bodyKey = `${preferences.layout}:${size.width}:${size.height}:${fontScale}`;
   const bodySize = body?.key === bodyKey && body.width > 0 && body.height > 0 ? body : undefined;
   const card = (kpi: DreamKpi, index: number) => {
     if (!bodySize) return null;
