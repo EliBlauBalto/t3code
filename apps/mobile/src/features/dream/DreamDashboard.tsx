@@ -216,7 +216,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
       : EMPTY_ENVIRONMENTS;
   const usage = useUsage(window, usageIds, { querySelectedOnly: true });
   const [cachedUsage, setCachedUsage] = useState<DreamUsageReading | null>(null);
-  const reading = resolveDreamUsage(cachedUsage, usageIds, usage);
+  const reading = resolveDreamUsage(cachedUsage, usageIds, usage, source.live);
   if (reading !== cachedUsage) setCachedUsage(reading);
   const { themeVariablesByAppearance } = useAppearancePreferences();
   const colors = resolvePalette(preferences.palette, themeVariablesByAppearance.dark);
@@ -324,7 +324,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
     unconfigured: {
       text: "Not connected",
       title: "Connect your first machine",
-      detail: "Open T3 Code → Settings → Environments to connect. Your sessions will appear here.",
+      detail: "Connect a machine in Settings → Environments. Your sessions will appear here.",
       color: STATUS_COLORS.idle,
     },
     unselected: {

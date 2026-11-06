@@ -17,10 +17,12 @@ export function resolveDreamUsage(
   previous: DreamUsageReading | null,
   environmentIds: ReadonlySet<EnvironmentId>,
   usage: Pick<UsageView, "merged" | "selectedEnvironments">,
+  liveEnvironmentIds: ReadonlySet<EnvironmentId> = environmentIds,
 ): DreamUsageReading | null {
   const available = usage.selectedEnvironments.filter(
     (entry) =>
       environmentIds.has(entry.environmentId) &&
+      liveEnvironmentIds.has(entry.environmentId) &&
       entry.isConnected &&
       entry.canReadDiagnostics &&
       entry.error === null &&

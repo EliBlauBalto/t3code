@@ -4,6 +4,7 @@ import {
   ProviderInstanceId,
   UsageLimitSourceId,
   type ServerProvider,
+  type UsageLimitSourceSnapshot,
 } from "@t3tools/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 import {
@@ -65,6 +66,20 @@ describe("subscription widget snapshots", () => {
     expect(JSON.stringify(snapshot)).not.toContain("private@example.com");
   });
   it("uses upstream deduplication for a native account also present in a proxy hub", () => {
+    const hub: UsageLimitSourceSnapshot = {
+      id: UsageLimitSourceId.make("hub"),
+      kind: "cliproxy",
+      label: "Hub",
+      checkedAt,
+      accounts: [
+        {
+          id: "account",
+          driver: ProviderDriverKind.make("codex"),
+          email: " PRIVATE@example.com ",
+          usageLimits: limits,
+        },
+      ],
+    };
     const input = new Map([
       [
         EnvironmentId.make("env"),
@@ -72,22 +87,7 @@ describe("subscription widget snapshots", () => {
           entry: { target: { label: "Remote" } },
           serverConfig: {
             providers: [provider()],
-            usageLimitSources: [
-              {
-                id: UsageLimitSourceId.make("hub"),
-                kind: "cliproxy" as const,
-                label: "Hub",
-                checkedAt,
-                accounts: [
-                  {
-                    id: "account",
-                    driver: ProviderDriverKind.make("codex"),
-                    email: " PRIVATE@example.com ",
-                    usageLimits: limits,
-                  },
-                ],
-              },
-            ],
+            usageLimitSources: [hub],
           },
         },
       ],
@@ -115,6 +115,37 @@ describe("subscription widget snapshots", () => {
       windows: [{ remaining: 60 }],
       partial: true,
     });
+    for (const driver of ["codex", "claudeAgent"] as const) {
+      config.usageLimitSources = [
+        {
+          ...failedSource,
+          error: undefined,
+          accounts: [
+            {
+              id: "failed-account",
+              driver: ProviderDriverKind.make(driver),
+              usageLimits: {
+                checkedAt,
+                windows: [],
+                unavailable: { reason: "probeFailed", message: "Fixture account failed" },
+              },
+            },
+          ],
+        },
+      ];
+      const dream = buildSubscriptionUsageSnapshot(
+        input,
+        deepLink,
+        Infinity,
+        new Set(input.keys()),
+      );
+      expect
+        .soft(dream.providers.some((entry) => entry.partial || entry.windows.length === 0))
+        .toBe(true);
+      expect
+        .soft(buildSubscriptionUsageSnapshot(input, deepLink))
+        .toEqual(widgetBeforeSourceFailure);
+    }
   });
   it("bounds OS storage and puts the most constrained windows first", () => {
     const windows = Array.from({ length: 20 }, (_, index) => ({

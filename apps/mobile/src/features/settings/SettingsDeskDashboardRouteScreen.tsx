@@ -244,7 +244,11 @@ export function SettingsDeskDashboardRouteScreen() {
             {preferences.layout !== "clock" ? (
               <SettingsSection
                 title={preferences.layout === "focus" ? "Focus tile" : "Tiles"}
-                footer="Tap a tile to change it. Metrics already in use swap places. Usage and quota cover selected machines."
+                footer={
+                  preferences.layout === "focus"
+                    ? "Tap the tile to change it. Usage and quota cover selected machines."
+                    : "Tap a tile to change it. Metrics already in use swap places. Usage and quota cover selected machines."
+                }
               >
                 <View className="gap-3 px-4 py-4">
                   <SlotTile

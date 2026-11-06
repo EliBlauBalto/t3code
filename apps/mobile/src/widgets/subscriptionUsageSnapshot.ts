@@ -134,8 +134,8 @@ export function buildSubscriptionUsageSnapshot(
       ? allPresentations
       : new Map([...allPresentations].filter(([id]) => includedEnvironmentIds.has(id)));
   const configuredDrivers = new Set(
-    [...presentations.values()].flatMap((presentation) =>
-      (presentation.serverConfig?.providers ?? [])
+    [...presentations.values()].flatMap((presentation) => [
+      ...(presentation.serverConfig?.providers ?? [])
         // Servers report default-enabled drivers even when their CLI is missing.
         .filter(
           (provider) =>
@@ -145,7 +145,14 @@ export function buildSubscriptionUsageSnapshot(
             provider.usageLimits?.unavailable?.reason !== "unsupported",
         )
         .map((provider) => provider.driver),
-    ),
+      ...(includedEnvironmentIds === null
+        ? []
+        : (presentation.serverConfig?.usageLimitSources ?? []).flatMap((source) =>
+            source.accounts
+              .filter((account) => account.usageLimits.unavailable?.reason !== "unsupported")
+              .map((account) => account.driver),
+          )),
+    ]),
   );
   const snapshot = subscriptionUsageProps(
     collectLimitAccounts(presentations),

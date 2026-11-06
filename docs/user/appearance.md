@@ -29,8 +29,9 @@ time and a short session summary. Preview your choices before starting it.
 
 Choose **Set as screen saver**, select **T3 Code**, and enable it while charging.
 Touching the screen saver exits. **Customize** in Android settings returns to the
-dashboard settings. Session counts follow your project and session choices; usage
-and quota cover every session on the machines you selected.
+dashboard settings. Session counts follow your project and session choices. Usage
+covers the last 24 hours across selected machines. Quota shows supported Codex and
+Claude accounts on those machines.
 
 ## Composer context
 

@@ -126,6 +126,30 @@ it("keeps the last valid reading during a refresh but clears it after access, co
     merged: { ...empty, totalTokens: 2400, costUsd: 6 },
   });
   expect(full).toMatchObject({ tokens: 2400, costUsd: 6, partial: false });
+  const shellPending = resolveDreamUsage(
+    full,
+    bothIds,
+    {
+      ...both,
+      merged: { ...empty, totalTokens: 2400, costUsd: 6 },
+    },
+    ids,
+  );
+  expect.soft(shellPending).toMatchObject({ tokens: 1200, costUsd: 3, partial: true });
+  expect.soft(resolveDreamUsage(shellPending, bothIds, both, new Set())).toBeNull();
+  expect
+    .soft(
+      resolveDreamUsage(
+        shellPending,
+        bothIds,
+        {
+          ...both,
+          merged: { ...empty, totalTokens: 2400, costUsd: 6 },
+        },
+        bothIds,
+      ),
+    )
+    .toMatchObject({ tokens: 2400, costUsd: 6, partial: false });
   expect
     .soft(
       resolveDreamUsage(full, bothIds, {

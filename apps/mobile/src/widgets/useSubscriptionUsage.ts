@@ -8,11 +8,6 @@ import { environmentPresentations } from "../state/presentation";
 import { serverEnvironment } from "../state/server";
 import { createWidgetRefresher, WIDGET_REFRESH_INTERVAL } from "./subscriptionUsageSnapshot";
 
-/**
- * App-lifetime worker that keeps provider quotas fresh for the usage widget:
- * on resume, on every connection change, and on a fixed interval while active.
- * Each environment is refreshed at most once per interval.
- */
 export function installSubscriptionUsageRefresh(
   isVisible = isAppActive,
   selectedEnvironmentIds: ReadonlySet<EnvironmentId> | null = null,

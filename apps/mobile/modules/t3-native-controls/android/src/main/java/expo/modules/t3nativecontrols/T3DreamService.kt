@@ -73,7 +73,12 @@ class T3DreamService : DreamService() {
     // RN refreshes its JS font-scale cache on activity resume; Dreams do not resume one.
     val context = reactHost?.currentReactContext ?: return
     if (context.hasActiveReactInstance()) {
-      (context.getNativeModule("DeviceInfo") as? LifecycleEventListener)?.onHostResume()
+      val deviceInfo = context.getNativeModule("DeviceInfo") as? LifecycleEventListener ?: run {
+        Log.e("T3DreamService", "RN 0.88 DeviceInfo lifecycle is unavailable for the screen saver")
+        finish()
+        return
+      }
+      deviceInfo.onHostResume()
     }
   }
 
@@ -121,29 +126,35 @@ class T3DreamService : DreamService() {
     stopTimerLease()
     renderer =
       UIManagerHelper.getUIManager(context, UIManagerType.FABRIC) as? FabricUIManager ?: run {
-        Log.w("T3DreamService", "RN 0.88 FabricUIManager is unavailable for the screen saver")
+        Log.e("T3DreamService", "RN 0.88 FabricUIManager is unavailable for the screen saver")
+        finish()
         return
       }
     taskContext = WeakReference(context)
     context.addLifecycleEventListener(lifecycleListener)
-    resumeRenderer()
-    // Keep RN timers running without reporting the background chat activity as resumed.
-    taskId = HeadlessJsTaskContext.getInstance(context).startTask(
-      HeadlessJsTaskConfig("T3DreamLifetime", Arguments.createMap(), 0, true)
-    )
+    if (resumeRenderer()) {
+      // Keep RN timers running without reporting the background chat activity as resumed.
+      taskId = HeadlessJsTaskContext.getInstance(context).startTask(
+        HeadlessJsTaskConfig("T3DreamLifetime", Arguments.createMap(), 0, true)
+      )
+    }
   }
 
-  private fun resumeRenderer() {
+  private fun resumeRenderer(): Boolean {
     // RN 0.88: keep Fabric and its dispatcher active without resuming ReactHost/AppState.
-    val currentRenderer = renderer ?: return
+    val currentRenderer = renderer ?: return false
     val dispatcher = currentRenderer.eventDispatcher as? LifecycleEventListener
-    if (dispatcher == null) {
-      Log.w(
+    return if (dispatcher == null) {
+      Log.e(
         "T3DreamService",
         "RN 0.88 Fabric dispatcher lifecycle is unavailable for the screen saver"
       )
+      finish()
+      false
+    } else {
+      currentRenderer.onHostResume()
+      dispatcher.onHostResume()
+      true
     }
-    currentRenderer.onHostResume()
-    dispatcher?.onHostResume()
   }
 }
