@@ -270,12 +270,7 @@ public final class StartupInstrumentation extends Instrumentation {
       Rect status = compactStatus ? phraseBounds(root, "Session status.")
           : textBounds(root, "Session status");
       if (status == null || status.isEmpty() || !bounds.contains(status)) return false;
-      if (!compactStatus) {
-        for (String label : new String[] { "Working", "Requests", "Questions", "Finished" }) {
-          Rect item = textBounds(root, label);
-          if (item == null || item.isEmpty() || !bounds.contains(item)) return false;
-        }
-      }
+      if (!statusRowsFit(root)) return false;
       if (!"Dashboard".equals(style)) return true;
       for (String label : new String[] { "300K", "$0.96", "36%", "2/2" }) {
         Rect item = textBounds(root, label);
@@ -287,6 +282,33 @@ public final class StartupInstrumentation extends Instrumentation {
           ? tokensPrimary ? tokens.right < status.left : status.right < tokens.left
           : tokensPrimary ? tokens.bottom < status.top : status.bottom < tokens.top;
     }, 30000);
+  }
+
+  private boolean statusRowsFit(AccessibilityNodeInfo root) {
+    Rect card = phraseBounds(root, "Session status.");
+    if (card == null || card.isEmpty()) return false;
+    java.util.Set<String> visible = new java.util.HashSet<>();
+    for (String label : new String[] {
+        "Working", "Requests", "Questions", "Failed", "Limited", "Waiting", "Finished",
+        "Need you", "Blocked", "Waiting / done" }) {
+      Rect row = textBounds(root, label);
+      if (row == null) continue;
+      if (row.isEmpty() || !card.contains(row)) return false;
+      visible.add(label);
+    }
+    if (visible.size() != 4) return false;
+    String view = screenText(root);
+    for (String[] status : new String[][] {
+        { "Working", "Working" }, { "Requests", "Need you" },
+        { "Questions", "Need you" }, { "Failed", "Blocked" },
+        { "Limited", "Blocked" }, { "Waiting", "Waiting / done" },
+        { "Finished", "Waiting / done" } }) {
+      if (java.util.regex.Pattern.compile("(?i)\\b[1-9]\\d*\\s+" + status[0] + "\\b")
+          .matcher(view).find() && !visible.contains(status[0]) && !visible.contains(status[1])) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private void tapText(UiAutomation automation, String text) {
@@ -831,11 +853,12 @@ public final class StartupInstrumentation extends Instrumentation {
               Rect bounds = new Rect();
               root.getBoundsInScreen(bounds);
               for (String label : "Dashboard".equals(style)
-                  ? new String[] { "Session status", "24h tokens", "24h cost", "Quota left", "Working", "Requests", "Questions", "Finished" }
-                  : "Focus".equals(style) ? new String[] { "Session status", "Working", "Requests", "Questions", "Finished" } : new String[0]) {
+                  ? new String[] { "Session status", "24h tokens", "24h cost", "Quota left" }
+                  : "Focus".equals(style) ? new String[] { "Session status" } : new String[0]) {
                 Rect item = textBounds(root, label);
                 if (item == null || item.isEmpty() || !bounds.contains(item)) return false;
               }
+              if (!"Clock".equals(style) && !statusRowsFit(root)) return false;
               if ("Dashboard".equals(style) && expectedLandscape) {
                 Rect status = textBounds(root, "Session status");
                 Rect tokens = textBounds(root, "24h tokens");
