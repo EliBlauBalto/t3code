@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useIsFocused } from "@react-navigation/native";
-import { Modal, Pressable, StatusBar, useWindowDimensions, View } from "react-native";
+import { Modal, Pressable, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ListActionRow } from "../../components/ui/ListActionRow";
@@ -78,8 +78,7 @@ export function DreamPreview({ source }: { readonly source: ReturnType<typeof us
         navigationBarTranslucent
         onRequestClose={() => setExpanded(false)}
       >
-        <View className="flex-1 bg-screen">
-          {expanded && focused && foreground ? <StatusBar hidden /> : null}
+        <View className="flex-1 bg-screen" style={{ paddingTop: insets.top }}>
           <Pressable
             accessible={false}
             onPress={() => setExpanded(false)}

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import {
   DREAM_KPIS,
@@ -17,6 +16,7 @@ export function DreamTile({
   kpi,
   large,
   focused,
+  frame,
   scale,
   fontScale,
   colors,
@@ -28,6 +28,7 @@ export function DreamTile({
   readonly kpi: DreamKpi;
   readonly large: boolean;
   readonly focused: boolean;
+  readonly frame: Readonly<{ left: number; top: number; width: number; height: number }>;
   readonly scale: number;
   readonly fontScale: number;
   readonly colors: DreamColors;
@@ -41,14 +42,11 @@ export function DreamTile({
     readonly progress?: number | null;
   };
 }) {
-  const [size, setSize] = useState<{ width: number; height: number }>();
   const number = (value: number) => (unavailable ? "–" : `${partial ? "~" : ""}${value}`);
   const needsYou = (kpi: "input" | "questions") => !unavailable && counts[kpi] > 0;
-  if (kpi === "") return <View style={styles.card} />;
-  const tileScale = dreamTileScale(scale, size, large && kpi === "status", fontScale);
-  const compactStatus =
-    kpi === "status" &&
-    (!large || (size !== undefined && size.height < 180 * Math.max(1, fontScale)));
+  if (kpi === "") return <View style={[styles.card, frame]} />;
+  const tileScale = dreamTileScale(scale, frame, large && kpi === "status", fontScale);
+  const compactStatus = kpi === "status" && (!large || frame.height < 180 * Math.max(1, fontScale));
   const statusKpis =
     compactStatus && counts.failed > 0
       ? (["working", "input", "questions", "failed"] as const)
@@ -76,15 +74,9 @@ export function DreamTile({
           ? `Session status. ${STATUS_KPIS.map((key) => `${DREAM_KPIS[key]} ${number(counts[key])}`).join(". ")}${counts.failed > 0 ? `. ${number(counts.failed)} failed` : ""}`
           : undefined
       }
-      onLayout={({ nativeEvent: { layout } }) =>
-        setSize((current) =>
-          current?.width === layout.width && current?.height === layout.height
-            ? current
-            : { width: layout.width, height: layout.height },
-        )
-      }
       style={[
         styles.card,
+        frame,
         {
           backgroundColor: focused
             ? "transparent"
@@ -92,7 +84,6 @@ export function DreamTile({
               ? themeColorWithAlpha(colors.accent, attention ? 0.09 : 0.045)
               : colors.card,
           borderRadius: large ? 24 : 18,
-          opacity: size ? 1 : 0,
           padding: Math.round((large ? 26 : 16) * tileScale),
           gap: focused ? 16 : large ? 6 : Math.max(2, Math.round(6 * tileScale)),
           justifyContent: focused ? "center" : "space-between",
@@ -267,7 +258,7 @@ const styles = StyleSheet.create({
   focusCompactStatusGrid: { width: "100%", maxWidth: 260 },
   focusStatusCell: { alignItems: "center" },
   card: {
-    flex: 1,
+    position: "absolute",
     minWidth: 0,
     borderWidth: 1,
     borderColor: "transparent",

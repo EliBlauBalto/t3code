@@ -220,6 +220,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
   const colors = resolvePalette(preferences.palette, themeVariablesByAppearance.dark);
   const dimensions = useWindowDimensions();
   const [bounds, setBounds] = useState<{ width: number; height: number }>();
+  const [body, setBody] = useState<{ key: string; width: number; height: number }>();
   const size = bounds ?? dimensions;
   const { fontScale } = dimensions;
   const wide = size.width >= 600 && size.width > size.height;
@@ -314,21 +315,6 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
         return { value: "", detail: "", alert: false };
     }
   };
-  const card = (kpi: DreamKpi, index: number, large: boolean) => (
-    <DreamTile
-      key={index}
-      kpi={kpi}
-      large={large}
-      focused={focused}
-      scale={scale}
-      fontScale={fontScale}
-      colors={colors}
-      counts={counts}
-      unavailable={unavailable}
-      partial={partial}
-      value={metric(kpi)}
-    />
-  );
   const connection = {
     loading: {
       text: "Connecting…",
@@ -363,6 +349,48 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
     },
     live: { text: "Live", title: "", detail: "", color: STATUS_COLORS.live },
   }[connectionState];
+  const bodyKey = `${preferences.layout}:${size.width}:${size.height}:${fontScale}:${connection.text}`;
+  const bodySize = body?.key === bodyKey && body.width > 0 && body.height > 0 ? body : undefined;
+  const card = (kpi: DreamKpi, index: number) => {
+    if (!bodySize) return null;
+    const { width, height } = bodySize;
+    const hero =
+      (wide ? width - gap : height - gap) * (wide ? 1.15 / 2.15 : 1 / (1 + 0.85 * textSpacing));
+    const gridWidth = wide ? width - hero - gap : width;
+    const gridHeight = wide ? height : height - hero - gap;
+    const tileWidth = Math.max(0, (gridWidth - gap) / 2);
+    const tileHeight = Math.max(0, (gridHeight - gap) / 2);
+    const frame =
+      focused || index === 0
+        ? {
+            left: 0,
+            top: 0,
+            width: focused || !wide ? width : hero,
+            height: focused || wide ? height : hero,
+          }
+        : {
+            left: (wide ? hero + gap : 0) + ((index - 1) % 2) * (tileWidth + gap),
+            top: (wide ? 0 : hero + gap) + Math.floor((index - 1) / 2) * (tileHeight + gap),
+            width: tileWidth,
+            height: tileHeight,
+          };
+    return (
+      <DreamTile
+        key={index}
+        kpi={kpi}
+        large={index === 0}
+        focused={focused}
+        frame={frame}
+        scale={scale}
+        fontScale={fontScale}
+        colors={colors}
+        counts={counts}
+        unavailable={unavailable}
+        partial={partial}
+        value={metric(kpi)}
+      />
+    );
+  };
   const minute = now.getMinutes();
   const shift = preferences.pixelShift
     ? [
@@ -389,7 +417,14 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
       ]}
     >
       {bounds ? (
-        <View style={[styles.content, { gap: gap * 1.5 }]}>
+        <View
+          // Preserve the native parent when measurement changes opacity and Fabric flattens views.
+          collapsable={false}
+          style={[
+            styles.content,
+            { gap: gap * 1.5, opacity: unavailable || clockOnly || bodySize ? 1 : 0 },
+          ]}
+        >
           <View style={[styles.header, clockOnly && styles.clockHeader, { transform: shift }]}>
             <DreamClockFace
               preferences={preferences}
@@ -473,34 +508,21 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
                 </>
               )}
             </Text>
-          ) : focused ? (
-            <View style={[styles.focus, { transform: shift }]}>
-              {card(preferences.slots[0]!, 0, true)}
-            </View>
           ) : (
             <View
-              style={[
-                styles.dashboard,
-                { flexDirection: wide ? "row" : "column", gap, transform: shift },
-              ]}
+              key={bodyKey}
+              onLayout={({ nativeEvent: { layout } }) =>
+                setBody((current) =>
+                  current?.key === bodyKey &&
+                  current.width === layout.width &&
+                  current.height === layout.height
+                    ? current
+                    : { key: bodyKey, width: layout.width, height: layout.height },
+                )
+              }
+              style={[focused ? styles.focus : styles.dashboard, { transform: shift }]}
             >
-              <View style={{ flex: wide ? 1.15 : 1, minWidth: 0 }}>
-                {card(preferences.slots[0]!, 0, true)}
-              </View>
-              <View
-                style={[
-                  styles.smallGrid,
-                  { minWidth: 0, flex: wide ? 1 : 0.85 * textSpacing, gap },
-                ]}
-              >
-                {[0, 1].map((row) => (
-                  <View key={row} style={[styles.smallRow, { gap }]}>
-                    {preferences.slots
-                      .slice(1 + row * 2, 3 + row * 2)
-                      .map((kpi, column) => card(kpi, 1 + row * 2 + column, false))}
-                  </View>
-                ))}
-              </View>
+              {preferences.slots.slice(0, focused ? 1 : 5).map(card)}
             </View>
           )}
         </View>
@@ -561,7 +583,5 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  dashboard: { flex: 1, gap: 14 },
-  smallGrid: { gap: 14 },
-  smallRow: { flex: 1, flexDirection: "row", gap: 14 },
+  dashboard: { flex: 1 },
 });
