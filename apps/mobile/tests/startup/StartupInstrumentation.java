@@ -645,11 +645,20 @@ public final class StartupInstrumentation extends Instrumentation {
               android.net.Uri.parse(appScheme + "://connections/new"))
               .setPackage(appId).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
           awaitScreen(automation, () -> getContext().startActivity(pair), "Address");
-          enterText(automation, "Address", fixture.getJSONObject(index).getString("address"));
+          AccessibilityNodeInfo submit = namedNode(automation.getRootInActiveWindow(), "Add environment");
+          if (submit == null) throw new AssertionError("Pairing submit control missing");
+          if (submit.isEnabled()) {
+            automation.executeAndWaitForEvent(() -> enterText(automation, "Address", ""), event -> {
+              AccessibilityNodeInfo disabled = namedNode(automation.getRootInActiveWindow(), "Add environment");
+              return disabled != null && !disabled.isEnabled();
+            }, 30000);
+          }
           String pairingCode = fixture.getJSONObject(index).getString("code");
-          automation.executeAndWaitForEvent(() -> enterText(automation, "Code", pairingCode), event -> {
-            AccessibilityNodeInfo submit = namedNode(automation.getRootInActiveWindow(), "Add environment");
-            return submit != null && submit.isEnabled();
+          enterText(automation, "Code", pairingCode);
+          String address = fixture.getJSONObject(index).getString("address");
+          automation.executeAndWaitForEvent(() -> enterText(automation, "Address", address), event -> {
+            AccessibilityNodeInfo ready = namedNode(automation.getRootInActiveWindow(), "Add environment");
+            return ready != null && ready.isEnabled();
           }, 30000);
           automation.executeAndWaitForEvent(() -> tapText(automation, "Add environment"), event -> {
             String view = screenText(automation.getRootInActiveWindow());

@@ -40,6 +40,8 @@ const waitForImportedThread = (
             AND provider_instance_id IS NOT NULL AND payload_json IS NOT NULL
             AND EXISTS (SELECT 1 FROM orchestration_v2_projection_messages AS message
               WHERE message.thread_id = thread.thread_id AND message.role = 'user')
+            AND EXISTS (SELECT 1 FROM orchestration_v2_legacy_imports AS imported
+              WHERE imported.thread_id = thread.thread_id AND imported.transcript_imported_at IS NOT NULL)
         `)
           .get(threadId);
         if (ready?.ready === 1) {
@@ -439,6 +441,32 @@ try {
     },
   );
   const code = await waitForExit(runner);
+  if (statusFixture) {
+    const snapshots = environments.map((environment, index) => {
+      using database = new NodeSqlite.DatabaseSync(
+        NodePath.join(environment.baseDir, "userdata", "statev2.sqlite"),
+        { readOnly: true },
+      );
+      const id = index === 0 ? "dream-fixture-limited" : "dream-fixture-waiting";
+      return {
+        environment: index,
+        run: database
+          .prepare(
+            "SELECT run_id, status, payload_json FROM orchestration_v2_projection_runs WHERE run_id = ?",
+          )
+          .get(id),
+        item: database
+          .prepare(
+            "SELECT turn_item_id, status, payload_json FROM orchestration_v2_projection_turn_items WHERE run_id = ?",
+          )
+          .get(id),
+      };
+    });
+    await NodeFSP.writeFile(
+      NodePath.join(process.argv[3]!, "status-fixture-final.json"),
+      JSON.stringify({ synthetic: true, providerTurnsExecuted: 0, snapshots }, null, 2) + "\n",
+    );
+  }
   process.exitCode = code ?? 1;
 } finally {
   for (const socket of fixtureSockets) socket.destroy();
