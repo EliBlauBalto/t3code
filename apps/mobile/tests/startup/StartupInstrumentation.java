@@ -1070,6 +1070,9 @@ public final class StartupInstrumentation extends Instrumentation {
         shell(automation, "su 0 cmd overlay disable --user 0 " + overlayId);
       }
       result.putString("stage", "unsupported device capability");
+      shell(automation, "am force-stop " + appId);
+      awaitScreen(automation, () -> getContext().startActivity(settings), "Set as screen saver");
+      String settingsPid = shell(automation, "pidof " + appId);
       ComponentName systemSettings = new Intent(android.provider.Settings.ACTION_DREAM_SETTINGS)
           .resolveActivity(getContext().getPackageManager());
       if (systemSettings == null) throw new AssertionError("Test system has no screen saver settings");
@@ -1082,6 +1085,14 @@ public final class StartupInstrumentation extends Instrumentation {
         result.putString("capabilityAfterDisable", remainingSettings == null
             ? "NONE" : remainingSettings.flattenToString());
         if (remainingSettings != null) throw new AssertionError("Screen saver settings still resolve after fixture disable");
+        awaitScreen(automation, () -> tapText(automation, "Set as screen saver"),
+            "Screen saver settings unavailable");
+        if (settingsPid.isEmpty() || !settingsPid.equals(shell(automation, "pidof " + appId))) {
+          throw new AssertionError("Unavailable screen saver settings restarted the app");
+        }
+        capture(automation, "settings-unavailable-feedback");
+        awaitScreen(automation, () -> tapText(automation, "OK"), "Set as screen saver");
+        result.putString("settingsUnavailableFeedback", "PASS");
         automation.injectInputEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_HOME), true);
         automation.injectInputEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_HOME), true);
         shell(automation, "am force-stop " + appId);
