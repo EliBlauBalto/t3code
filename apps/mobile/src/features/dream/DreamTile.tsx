@@ -22,7 +22,6 @@ export function DreamTile({
   fontScale,
   colors,
   counts,
-  unavailable,
   partial,
   value,
 }: {
@@ -34,7 +33,6 @@ export function DreamTile({
   readonly fontScale: number;
   readonly colors: DreamColors;
   readonly counts: ReturnType<typeof summarizeDreamThreads>;
-  readonly unavailable: boolean;
   readonly partial: boolean;
   readonly value: {
     readonly value: string;
@@ -43,15 +41,12 @@ export function DreamTile({
     readonly progress?: number | null;
   };
 }) {
-  const number = (value: number) => (unavailable ? "–" : `${partial ? "~" : ""}${value}`);
-  const needsYou = (kpi: "input" | "questions") => !unavailable && counts[kpi] > 0;
+  const number = (value: number) => `${partial ? "~" : ""}${value}`;
+  const needsYou = (kpi: "input" | "questions") => counts[kpi] > 0;
   if (kpi === "") return <View style={[styles.card, frame]} />;
   const tileScale = dreamTileScale(scale, frame, large && kpi === "status", fontScale);
   const compactStatus = kpi === "status" && (!large || frame.height < 180 * Math.max(1, fontScale));
-  const statusRows = resolveDreamStatusRows(counts, compactStatus);
-  const secondaryStatus = (["waiting", "failed", "limited"] as const).filter(
-    (key) => counts[key] > 0,
-  );
+  const statusRows = kpi === "status" ? resolveDreamStatusRows(counts) : [];
   const danger = value.alert || (kpi === "status" && (counts.failed > 0 || counts.limited > 0));
   const attention =
     kpi === "status"
@@ -66,10 +61,8 @@ export function DreamTile({
       : colors.foreground;
   return (
     <View
-      accessible={compactStatus}
-      accessibilityLabel={
-        compactStatus ? dreamStatusSummary(counts, partial, unavailable) : undefined
-      }
+      accessible={kpi === "status"}
+      accessibilityLabel={kpi === "status" ? dreamStatusSummary(counts, partial) : undefined}
       style={[
         styles.card,
         frame,
@@ -173,30 +166,6 @@ export function DreamTile({
               </Text>
             </View>
           ))}
-          {large && !compactStatus && !unavailable && secondaryStatus.length > 0 ? (
-            <Text
-              numberOfLines={2}
-              maxFontSizeMultiplier={1.4}
-              style={{
-                color: colors.secondary,
-                fontSize: Math.max(11, 13 * tileScale),
-                width: "100%",
-                textAlign: focused ? "center" : "left",
-              }}
-            >
-              {secondaryStatus.map((key, index) => (
-                <Text
-                  key={key}
-                  style={
-                    key === "failed" || key === "limited" ? { color: colors.alert } : undefined
-                  }
-                >
-                  {index > 0 ? " · " : ""}
-                  {number(counts[key])} {key}
-                </Text>
-              ))}
-            </Text>
-          ) : null}
         </View>
       ) : (
         <View

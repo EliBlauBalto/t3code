@@ -214,10 +214,7 @@ const DREAM_STATUS_LABELS = {
   finished: DREAM_KPIS.finished,
 } as const;
 
-export function resolveDreamStatusRows(
-  counts: ReturnType<typeof summarizeDreamThreads>,
-  compact: boolean,
-) {
+export function resolveDreamStatusRows(counts: ReturnType<typeof summarizeDreamThreads>) {
   type Status = keyof typeof DREAM_STATUS_LABELS;
   const primary = ["working", "input", "questions", "finished"] as const;
   const row = (
@@ -225,13 +222,12 @@ export function resolveDreamStatusRows(
     label: string = DREAM_STATUS_LABELS[keys[0]!],
     values = keys.map((key) => counts[key]),
   ) => ({ keys, label, values });
-  if (!compact) return primary.map((key) => row([key]));
   const statuses = Object.keys(DREAM_STATUS_LABELS) as Status[];
   const active = statuses.filter((key) => counts[key] > 0);
   if (active.length > 4) {
     return [
       row(["working"]),
-      row(["input", "questions"], "Needs you", [counts.input + counts.questions]),
+      row(["input", "questions"], "Need you", [counts.input + counts.questions]),
       row(["failed", "limited"], "Blocked", [counts.failed + counts.limited]),
       row(["waiting", "finished"], "Waiting / done"),
     ];
@@ -265,12 +261,11 @@ export function resolveDreamClockStatus(counts: ReturnType<typeof summarizeDream
 export function dreamStatusSummary(
   counts: ReturnType<typeof summarizeDreamThreads>,
   partial: boolean,
-  unavailable = false,
 ) {
   return `Session status. ${Object.entries(DREAM_STATUS_LABELS)
     .map(
       ([key, label]) =>
-        `${unavailable ? "–" : `${partial ? "~" : ""}${counts[key as keyof typeof counts]}`} ${label.toLowerCase()}`,
+        `${partial ? "~" : ""}${counts[key as keyof typeof counts]} ${label.toLowerCase()}`,
     )
     .join(". ")}`;
 }

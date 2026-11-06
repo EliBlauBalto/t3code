@@ -387,7 +387,6 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
         fontScale={fontScale}
         colors={colors}
         counts={counts}
-        unavailable={unavailable}
         partial={partial}
         value={metric(kpi)}
       />
@@ -486,7 +485,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
             </View>
           ) : clockOnly ? (
             <Text
-              numberOfLines={2}
+              numberOfLines={3}
               maxFontSizeMultiplier={1.4}
               accessibilityLabel={
                 unavailable ? connection.title : dreamStatusSummary(counts, partial)
@@ -512,7 +511,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
                           : undefined
                       }
                     >
-                      {`${index > 0 ? " · " : ""}${number(row.value)}\u00a0${row.label.toLowerCase().replaceAll(" ", "\u00a0")}`}
+                      {`${index > 0 ? "\u00a0· " : ""}${number(row.value)}\u00a0${row.label.toLowerCase().replaceAll(" ", "\u00a0")}`}
                     </Text>
                   ))}
             </Text>

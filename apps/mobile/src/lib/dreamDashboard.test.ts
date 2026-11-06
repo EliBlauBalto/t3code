@@ -15,7 +15,7 @@ import {
   resolveDreamClockStatus,
 } from "./dreamDashboard";
 
-it("keeps blocked and waiting sessions represented in compact tiles and the clock summary", () => {
+it("keeps active sessions represented in every status tile and the clock summary", () => {
   const empty = summarizeDreamThreads([]);
   expect(resolveDreamClockStatus(empty).flatMap((row) => row.keys)).toEqual([
     "working",
@@ -31,7 +31,7 @@ it("keeps blocked and waiting sessions represented in compact tiles and the cloc
     { ...empty, waiting: 1 },
     { ...empty, failed: 1, limited: 1, waiting: 1 },
   ]) {
-    const rows = resolveDreamStatusRows(counts, true);
+    const rows = resolveDreamStatusRows(counts);
     const represented = new Set(rows.flatMap((row) => row.keys));
     expect(rows).toHaveLength(4);
     for (const [key, count] of Object.entries(counts)) {
@@ -51,16 +51,10 @@ it("keeps blocked and waiting sessions represented in compact tiles and the cloc
     waiting: 6,
     finished: 7,
   };
-  const grouped = resolveDreamStatusRows(all, true);
+  const grouped = resolveDreamStatusRows(all);
   expect(grouped).toHaveLength(4);
   expect(new Set(grouped.flatMap((row) => row.keys))).toEqual(new Set(Object.keys(all)));
   expect(grouped.map((row) => row.values)).toEqual([[1], [5], [9], [6, 7]]);
-  expect(resolveDreamStatusRows(all, false).flatMap((row) => row.keys)).toEqual([
-    "working",
-    "input",
-    "questions",
-    "finished",
-  ]);
   expect(new Set(resolveDreamClockStatus(all).flatMap((row) => row.keys))).toEqual(
     new Set(Object.keys(all)),
   );
