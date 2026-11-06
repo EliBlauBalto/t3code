@@ -861,9 +861,9 @@ public final class StartupInstrumentation extends Instrumentation {
         selectLargeTile(automation, "24h tokens", "Session status");
         selectStyle(automation, "Dashboard");
         for (String palette : new String[] { "Amber night", "Monochrome", "Theme" }) {
-          scrollTo(automation, "Palette: " + palette);
-          automation.executeAndWaitForEvent(() -> tapText(automation, "Palette: " + palette), event -> {
-            AccessibilityNodeInfo option = namedNode(automation.getRootInActiveWindow(), "Palette: " + palette);
+          scrollTo(automation, "Colors: " + palette);
+          automation.executeAndWaitForEvent(() -> tapText(automation, "Colors: " + palette), event -> {
+            AccessibilityNodeInfo option = namedNode(automation.getRootInActiveWindow(), "Colors: " + palette);
             return option != null && (option.isSelected() || option.isChecked());
           }, 30000);
           if (!"Theme".equals(palette)) {
