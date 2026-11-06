@@ -115,7 +115,7 @@ it.effect("preserves separate Dream setting changes submitted before the next re
         dreamDashboard: {
           all: false,
           palette: "mono",
-          slots: ["status", "tokens", "cost", "limits", "connections"],
+          slots: ["status", "tokens", "cost", "limits", ""],
         },
       });
       sources[0]!.save((current) => ({ projects: [...current.projects, "one:p"] }));

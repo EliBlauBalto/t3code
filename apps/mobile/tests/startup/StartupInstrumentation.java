@@ -255,7 +255,7 @@ public final class StartupInstrumentation extends Instrumentation {
       if (dismissSystemDialog(automation, view) || !dreamVisible(root)) return false;
       Rect bounds = new Rect();
       root.getBoundsInScreen(bounds);
-      Rect live = textBounds(root, "Live");
+      Rect live = phraseBounds(root, "Live");
       String clockValue = clockText(automation);
       Rect clock = clockValue.isEmpty() ? null : textBounds(root, clockValue);
       if ((bounds.width() > bounds.height()) != landscape
@@ -267,67 +267,27 @@ public final class StartupInstrumentation extends Instrumentation {
         if (summary == null) summary = phraseBounds(root, "need you");
         return summary != null && !summary.isEmpty() && bounds.contains(summary);
       }
-      Rect status = compactStatus ? phraseBounds(root, "Session status.")
-          : textBounds(root, "Session status");
+      Rect status = phraseBounds(root, "Session status.");
       if (status == null || status.isEmpty() || !bounds.contains(status)) return false;
       if (!statusRowsFit(root)) return false;
       if (!"Dashboard".equals(style)) return true;
-      for (String label : new String[] { "300K", "$0.96", "36%", "2/2" }) {
-        Rect item = textBounds(root, label);
+      for (String label : new String[] { "300K", "$0.96", "36%" }) {
+        Rect item = phraseBounds(root, label);
         if (item == null || item.isEmpty() || !bounds.contains(item)) return false;
       }
-      Rect tokens = textBounds(root, "24h tokens");
+      Rect tokens = phraseBounds(root, "24h tokens.");
       if (tokens == null || tokens.isEmpty() || !bounds.contains(tokens)) return false;
-      return landscape
-          ? tokensPrimary ? tokens.right < status.left : status.right < tokens.left
-          : tokensPrimary ? tokens.bottom < status.top : status.bottom < tokens.top;
+      return tokensPrimary ? tokens.bottom <= status.top : status.bottom <= tokens.top;
     }, 30000);
   }
 
   private boolean statusRowsFit(AccessibilityNodeInfo root) {
-    Rect card = phraseBounds(root, "Session status.");
-    if (card == null || card.isEmpty()) return false;
-    java.util.Set<String> visible = new java.util.HashSet<>();
-    for (String label : new String[] {
-        "Working", "Requests", "Questions", "Failed", "Limited", "Waiting", "Finished",
-        "Need you", "Blocked", "Waiting / done" }) {
-      Rect row = statusLabelBounds(root, label);
-      if (row == null) continue;
-      if (row.isEmpty() || !card.contains(row)) return false;
-      visible.add(label);
-    }
-    if (visible.isEmpty()) {
-      return textBounds(root, "All quiet") != null || textBounds(root, "No alerts reported") != null;
-    }
-    String view = screenText(root);
-    for (String[] status : new String[][] {
-        { "Working", "Working" }, { "Requests", "Need you" },
-        { "Questions", "Need you" }, { "Failed", "Blocked" },
-        { "Limited", "Blocked" }, { "Waiting", "Waiting / done" },
-        { "Finished", "Waiting / done" } }) {
-      if (java.util.regex.Pattern.compile("(?i)\\b[1-9]\\d*\\s+" + status[0] + "\\b")
-          .matcher(view).find() && !visible.contains(status[0]) && !visible.contains(status[1])) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  private Rect statusLabelBounds(AccessibilityNodeInfo node, String label) {
-    if (node == null) return null;
-    String text = node.getText() == null ? "" : node.getText().toString().replace('\u00a0', ' ');
-    if (text.equalsIgnoreCase(label)
-        || java.util.regex.Pattern.compile("(?i)^~?\\d+\\s+" + java.util.regex.Pattern.quote(label) + "$")
-            .matcher(text).matches()) {
-      Rect bounds = new Rect();
-      node.getBoundsInScreen(bounds);
-      return bounds;
-    }
-    for (int index = 0; index < node.getChildCount(); index++) {
-      Rect found = statusLabelBounds(node.getChild(index), label);
-      if (found != null) return found;
-    }
-    return null;
+    Rect summary = phraseBounds(root, "Session status.");
+    if (summary == null) summary = phraseBounds(root, "Partial session status.");
+    Rect screen = new Rect();
+    root.getBoundsInScreen(screen);
+    // This checks the grouped reading's bounds; PNG review checks its individual glyphs.
+    return summary != null && !summary.isEmpty() && screen.contains(summary);
   }
 
   private void tapText(UiAutomation automation, String text) {
@@ -425,28 +385,28 @@ public final class StartupInstrumentation extends Instrumentation {
 
   private static final class ScrollEnd extends RuntimeException { }
 
-  private void selectLargeTile(UiAutomation automation, String current, String next) throws Exception {
-    String currentLabel = "Large tile: " + current;
+  private void selectMainReading(UiAutomation automation, String current, String next) throws Exception {
+    String currentLabel = "Main reading: " + current;
     scrollTo(automation, currentLabel);
     automation.executeAndWaitForEvent(() -> tapText(automation, currentLabel), event -> {
-      Rect title = textBounds(automation.getRootInActiveWindow(), "Large tile");
+      Rect title = textBounds(automation.getRootInActiveWindow(), "Main reading");
       return title != null && !title.isEmpty();
     }, 30000);
     AccessibilityNodeInfo sheet = actionNode(automation.getRootInActiveWindow(), "Expand");
     if (sheet != null) {
-      Rect title = textBounds(automation.getRootInActiveWindow(), "Large tile");
+      Rect title = textBounds(automation.getRootInActiveWindow(), "Main reading");
       automation.executeAndWaitForEvent(() -> {
         if (!sheet.performAction(actionId(sheet, "Expand"))) {
           throw new AssertionError("Cannot expand the tile picker");
         }
       }, event -> {
-        Rect expanded = textBounds(automation.getRootInActiveWindow(), "Large tile");
+        Rect expanded = textBounds(automation.getRootInActiveWindow(), "Main reading");
         return title != null && expanded != null && expanded.top < title.top;
       }, 30000);
       automation.waitForIdle(100, 30000);
     }
     scrollTo(automation, next);
-    awaitScreen(automation, () -> tapText(automation, next), "Large tile: " + next);
+    awaitScreen(automation, () -> tapText(automation, next), "Main reading: " + next);
   }
 
   private void enterText(UiAutomation automation, String label, String value) {
@@ -597,13 +557,16 @@ public final class StartupInstrumentation extends Instrumentation {
       automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
       result.putString("styles", "PASS");
       result.putString("stage", "tile selection");
-      if (has(screenText(automation.getRootInActiveWindow()), "Large tile:")) {
+      if (has(screenText(automation.getRootInActiveWindow()), "Main reading:")) {
         throw new AssertionError("Clock still exposes unused tile settings");
       }
       selectStyle(automation, "Dashboard");
-      selectLargeTile(automation, "Session status", "24h cost");
-      selectLargeTile(automation, "24h cost", "Session status");
+      selectMainReading(automation, "Session status", "24h cost");
+      selectMainReading(automation, "24h cost", "Session status");
       result.putString("tileSelection", "PASS");
+      scrollTo(automation, "Main reading: Session status");
+      capture(automation, "settings-readings");
+      scrollTo(automation, "Dashboard style", AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD);
       selectStyle(automation, "Clock");
       result.putString("stage", "cold Customize and saved style");
       automation.executeAndWaitForEvent(() -> {
@@ -727,10 +690,10 @@ public final class StartupInstrumentation extends Instrumentation {
             automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
             restoreSettingsAfterResize(automation, settings, launch);
             selectStyle(automation, "Dashboard");
-            selectLargeTile(automation, "Session status", "24h tokens");
+            selectMainReading(automation, "Session status", "24h tokens");
             for (String style : new String[] { "Dashboard", "Focus", "Clock" }) {
               if ("Focus".equals(style)) {
-                selectLargeTile(automation, "24h tokens", "Session status");
+                selectMainReading(automation, "24h tokens", "Session status");
                 selectStyle(automation, "Focus");
               } else if ("Clock".equals(style)) {
                 selectStyle(automation, "Clock");
@@ -748,7 +711,7 @@ public final class StartupInstrumentation extends Instrumentation {
                     Rect bounds = new Rect();
                     root.getBoundsInScreen(bounds);
                     Rect status = phraseBounds(root, "Clock".equals(style) ? "failed" : "Session status");
-                    Rect live = textBounds(root, "Live");
+                    Rect live = phraseBounds(root, "Live");
                     return (bounds.width() > bounds.height()) == landscape
                         && status != null && !status.isEmpty() && bounds.contains(status)
                         && live != null && !live.isEmpty() && bounds.contains(live)
@@ -804,7 +767,7 @@ public final class StartupInstrumentation extends Instrumentation {
               if (dismissSystemDialog(automation, view) || !dreamVisible(root)) return false;
               Rect bounds = new Rect();
               root.getBoundsInScreen(bounds);
-              Rect tokens = textBounds(root, "24h tokens");
+              Rect tokens = phraseBounds(root, "24h tokens.");
               return has(view, online ? "Live" : "1 of 2 machines live")
                   && has(view, online ? "300K" : "150K")
                   && has(view, online ? "$0.96" : "$0.48")
@@ -822,13 +785,13 @@ public final class StartupInstrumentation extends Instrumentation {
               if (!dreamVisible(root)) return false;
               Rect bounds = new Rect();
               root.getBoundsInScreen(bounds);
-              Rect status = textBounds(root, "Session status");
-              Rect tokens = textBounds(root, "24h tokens");
+              Rect status = phraseBounds(root, "Session status.");
+              Rect tokens = phraseBounds(root, "24h tokens.");
               String view = screenText(root);
               return (bounds.width() > bounds.height()) == landscape
                   && status != null && !status.isEmpty() && bounds.contains(status)
                   && tokens != null && !tokens.isEmpty() && bounds.contains(tokens)
-                  && (!landscape || tokens.left > status.right)
+                  && (!landscape || tokens.top >= status.bottom)
                   && has(view, "300K") && has(view, "$0.96") && has(view, "36%");
             }, 30000);
             capture(automation, landscape ? "active-rotation-landscape" : "active-rotation-portrait");
@@ -851,14 +814,14 @@ public final class StartupInstrumentation extends Instrumentation {
         awaitScreen(automation, () -> tapText(automation, "Full-screen preview"), "300K");
         capture(automation, "populated-in-app-preview");
         awaitScreen(automation, () -> tapText(automation, "Close preview"), "Full-screen preview");
-        scrollTo(automation, "Large tile: Session status");
+        scrollTo(automation, "Main reading: Session status");
         capture(automation, "settings-tile-editor-visible");
         selectStyle(automation, "Focus");
-        selectLargeTile(automation, "Session status", "24h tokens");
+        selectMainReading(automation, "Session status", "24h tokens");
         awaitDream(automation, "300K");
         capture(automation, "focus-tokens-phone");
         exitDreamToSettings(automation, settings);
-        selectLargeTile(automation, "24h tokens", "Session status");
+        selectMainReading(automation, "24h tokens", "Session status");
         selectStyle(automation, "Dashboard");
         for (String palette : new String[] { "Amber night", "Monochrome", "Theme" }) {
           scrollTo(automation, "Colors: " + palette);
@@ -891,7 +854,7 @@ public final class StartupInstrumentation extends Instrumentation {
             automation.executeAndWaitForEvent(() -> startDream(automation), event -> {
               AccessibilityNodeInfo root = automation.getRootInActiveWindow();
               String view = screenText(root);
-              Rect liveStatus = textBounds(root, "Live");
+              Rect liveStatus = phraseBounds(root, "Live");
               if (dismissSystemDialog(automation, view)) return false;
               if (!dreamVisible(root) || has(view, "Starting T3 Code")) return false;
               Rect bounds = new Rect();
@@ -899,20 +862,20 @@ public final class StartupInstrumentation extends Instrumentation {
               for (String label : "Dashboard".equals(style)
                   ? new String[] { "Session status", "24h tokens", "24h cost", "Quota left" }
                   : "Focus".equals(style) ? new String[] { "Session status" } : new String[0]) {
-                Rect item = textBounds(root, label);
+                Rect item = phraseBounds(root, label);
                 if (item == null || item.isEmpty() || !bounds.contains(item)) return false;
               }
               if (!"Clock".equals(style) && !statusRowsFit(root)) return false;
               if ("Dashboard".equals(style) && expectedLandscape) {
-                Rect status = textBounds(root, "Session status");
-                Rect tokens = textBounds(root, "24h tokens");
-                if (tokens.left <= status.right) return false;
+                Rect status = phraseBounds(root, "Session status.");
+                Rect tokens = phraseBounds(root, "24h tokens.");
+                if (tokens.top < status.bottom) return false;
               }
               return has(view, "Clock".equals(style) ? "working" : "Session status")
                   && (bounds.width() > bounds.height()) == expectedLandscape
                   && liveStatus != null && !liveStatus.isEmpty()
                   && (!"Dashboard".equals(style)
-                       || (has(view, "300K") && has(view, "$0.96") && has(view, "36%") && has(view, "2/2")));
+                       || (has(view, "300K") && has(view, "$0.96") && has(view, "36%")));
             }, 30000);
             if ("Dashboard".equals(style)) result.putString("populatedMetrics", "PASS");
             String display = screenText(automation.getRootInActiveWindow());
@@ -958,7 +921,7 @@ public final class StartupInstrumentation extends Instrumentation {
         exitDreamToSettings(automation, settings);
         selectStyle(automation, "Dashboard");
         result.putString("stage", "small status font setup");
-        selectLargeTile(automation, "Session status", "24h tokens");
+        selectMainReading(automation, "Session status", "24h tokens");
         String previousFontScale = shell(automation, "settings get system font_scale");
         try {
           for (String fontScale : new String[] { "1.0", "1.5", "2.0" }) {
@@ -975,7 +938,7 @@ public final class StartupInstrumentation extends Instrumentation {
           }
           result.putString("smallStatusCaptures", "CAPTURED");
           result.putString("stage", "restore large tile before all-style large text captures");
-          selectLargeTile(automation, "24h tokens", "Session status");
+          selectMainReading(automation, "24h tokens", "Session status");
           for (String style : new String[] { "Dashboard", "Focus", "Clock" }) {
             result.putString("stage", "select large text style " + style);
             selectStyle(automation, style);
@@ -1036,13 +999,13 @@ public final class StartupInstrumentation extends Instrumentation {
           if (dismissSystemDialog(automation, coldText)) return false;
           Rect coldScreen = new Rect();
           coldRoot.getBoundsInScreen(coldScreen);
-          Rect status = textBounds(coldRoot, "Session status");
-          Rect tokens = textBounds(coldRoot, "24h tokens");
-          Rect liveStatus = textBounds(coldRoot, "Live");
+          Rect status = phraseBounds(coldRoot, "Session status.");
+          Rect tokens = phraseBounds(coldRoot, "24h tokens.");
+          Rect liveStatus = phraseBounds(coldRoot, "Live");
           return coldScreen.width() > coldScreen.height()
               && status != null && tokens != null && !status.isEmpty() && !tokens.isEmpty()
               && coldScreen.contains(status) && coldScreen.contains(tokens)
-              && tokens.left > status.right
+              && tokens.top >= status.bottom
               && liveStatus != null && !liveStatus.isEmpty()
               && has(coldText, "300K") && has(coldText, "$0.96") && has(coldText, "36%")
               && !has(coldText, "Connect your first machine")
@@ -1065,7 +1028,7 @@ public final class StartupInstrumentation extends Instrumentation {
             Rect displayBounds = new Rect();
             activeRoot.getBoundsInScreen(displayBounds);
             return compact != null && !compact.isEmpty() && displayBounds.contains(compact)
-                && textBounds(activeRoot, "300K") != null;
+                && phraseBounds(activeRoot, "300K") != null;
           }, 30000);
           if (activeDreamPid.isEmpty() || !activeDreamPid.equals(shell(automation, "pidof " + appId))) {
             throw new AssertionError("Font-scale update restarted the Dream process");

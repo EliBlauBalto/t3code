@@ -41,8 +41,8 @@ const options = <Value extends string>(labels: Record<Value, string>) =>
 
 const defaults = normalizeDreamPreferences(undefined);
 const layoutDescriptions: Record<DreamLayout, string> = {
-  dashboard: "Session activity and your key metrics, together.",
-  focus: "One metric, with room to breathe.",
+  dashboard: "Time, session activity and a few useful readings.",
+  focus: "One reading, given the whole screen.",
   clock: "Time first. A quiet session summary below.",
 };
 
@@ -84,73 +84,50 @@ function LayoutChoice(props: {
               overflow: "hidden",
             }}
           >
-            {value === "dashboard" ? (
-              <View style={{ flex: 1, gap: 5 }}>
-                <Text
-                  allowFontScaling={false}
-                  style={{ color: "#e8e8e8", fontSize: 11, fontWeight: "300" }}
-                >
-                  10:24
-                </Text>
-                <View
-                  style={{
-                    height: 20,
-                    borderRadius: 4,
-                    backgroundColor: "#24262d",
-                    paddingHorizontal: 6,
-                    justifyContent: "center",
-                  }}
-                >
-                  <View
-                    style={{ width: 22, height: 3, borderRadius: 2, backgroundColor: "#a6b9f2" }}
-                  />
-                </View>
-                <View style={{ flex: 1, flexDirection: "row", gap: 4 }}>
-                  {[0, 1].map((column) => (
-                    <View key={column} style={{ flex: 1, gap: 4 }}>
-                      {[0, 1].map((row) => (
-                        <View
-                          key={row}
-                          style={{ flex: 1, borderRadius: 3, backgroundColor: "#1c1e24" }}
-                        />
-                      ))}
-                    </View>
-                  ))}
-                </View>
-              </View>
-            ) : value === "focus" ? (
-              <View style={{ flex: 1 }}>
-                <Text
-                  allowFontScaling={false}
-                  style={{ color: "#858994", fontSize: 9, fontWeight: "300" }}
-                >
-                  10:24
-                </Text>
-                <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 4 }}>
+            <View
+              style={{ flex: 1, justifyContent: value === "clock" ? "center" : "space-between" }}
+            >
+              <Text
+                allowFontScaling={false}
+                className="font-t3-medium"
+                style={{
+                  color: "#e5e5e5",
+                  fontSize: value === "clock" ? 27 : value === "dashboard" ? 23 : 10,
+                  letterSpacing: -1,
+                }}
+              >
+                9:41
+              </Text>
+              {value !== "clock" ? (
+                <View>
                   <Text
                     allowFontScaling={false}
-                    style={{ color: "#a6b9f2", fontSize: 38, lineHeight: 42, fontWeight: "300" }}
+                    className="font-t3-medium"
+                    style={{
+                      color: "#d9b88a",
+                      fontSize: value === "focus" ? 15 : 10,
+                      lineHeight: value === "focus" ? 17 : 12,
+                    }}
                   >
-                    1
+                    1 session{"\n"}needs you.
                   </Text>
-                  <View
-                    style={{ width: 26, height: 3, borderRadius: 2, backgroundColor: "#858994" }}
-                  />
+                  {value === "dashboard" ? (
+                    <View
+                      style={{
+                        marginTop: 7,
+                        borderTopWidth: 1,
+                        borderColor: "#333",
+                        paddingTop: 4,
+                      }}
+                    >
+                      <Text allowFontScaling={false} style={{ color: "#aaa", fontSize: 8 }}>
+                        300K $0.96 36%
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
-              </View>
-            ) : (
-              <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 8 }}>
-                <Text
-                  allowFontScaling={false}
-                  style={{ color: "#e8e8e8", fontSize: 25, fontWeight: "200", letterSpacing: -1 }}
-                >
-                  10:24
-                </Text>
-                <View
-                  style={{ width: 30, height: 2, borderRadius: 1, backgroundColor: "#858994" }}
-                />
-              </View>
-            )}
+              ) : null}
+            </View>
           </View>
           <Text
             numberOfLines={1}
@@ -166,55 +143,32 @@ function LayoutChoice(props: {
   );
 }
 
-function SlotTile(props: {
+function ReadingChoice(props: {
   readonly kpi: DreamKpi;
   readonly index: number;
   readonly disabled: boolean;
   readonly onChange: (kpi: DreamKpi) => void;
 }) {
-  const central = props.index === 0;
+  const label = props.index === 0 ? "Main reading" : "Reading " + props.index;
   return (
-    <View style={central ? undefined : { flex: 1 }}>
-      <DreamSelectionSheet
-        title={central ? "Large tile" : `Small tile ${props.index}`}
-        options={KPI_ACTIONS}
-        selected={[props.kpi || "empty"]}
-        disabled={props.disabled}
-        onSelect={(id) => {
-          const next = id === "empty" ? "" : id;
-          if (Object.hasOwn(DREAM_KPIS, next)) props.onChange(next as DreamKpi);
-        }}
-      >
-        {(open) => (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${central ? "Large tile" : `Small tile ${props.index}`}: ${DREAM_KPIS[props.kpi]}`}
-            accessibilityHint="Choose what this tile shows"
-            accessibilityState={{ disabled: props.disabled }}
-            disabled={props.disabled}
-            onPress={open}
-            className={cn(
-              "items-center justify-center rounded-2xl border px-3 active:opacity-70",
-              central
-                ? "h-20 border-primary/40 bg-primary/10"
-                : "h-16 border-border-subtle bg-subtle",
-              props.disabled && "opacity-45",
-            )}
-          >
-            <Text
-              numberOfLines={2}
-              textRole={central ? "headline" : "label"}
-              className={cn(
-                "text-center font-t3-medium",
-                props.kpi === "" && "text-foreground-muted",
-              )}
-            >
-              {DREAM_KPIS[props.kpi]}
-            </Text>
-          </Pressable>
-        )}
-      </DreamSelectionSheet>
-    </View>
+    <DreamSelectionSheet
+      title={label}
+      options={KPI_ACTIONS}
+      selected={[props.kpi || "empty"]}
+      disabled={props.disabled}
+      onSelect={(id) => {
+        const next = id === "empty" ? "" : id;
+        if (Object.hasOwn(DREAM_KPIS, next)) props.onChange(next as DreamKpi);
+      }}
+    >
+      {(open) => (
+        <ListActionRow
+          label={`${label}: ${DREAM_KPIS[props.kpi]}`}
+          disabled={props.disabled}
+          onPress={open}
+        />
+      )}
+    </DreamSelectionSheet>
   );
 }
 
@@ -335,42 +289,20 @@ export function SettingsDeskDashboardRouteScreen() {
             </SettingsSection>
             {preferences.layout !== "clock" ? (
               <SettingsSection
-                title={preferences.layout === "focus" ? "Focus tile" : "Tiles"}
-                footer={
-                  preferences.layout === "focus"
-                    ? "Tap the tile to change it. Usage and quota cover selected machines."
-                    : "Tap a tile to change it. Metrics already in use swap places. Usage and quota cover selected machines."
-                }
+                title={preferences.layout === "focus" ? "Focus reading" : "Readings"}
+                footer="Usage and quota cover your selected machines. Readings already in use swap places."
               >
-                <View className="gap-3 px-4 py-4">
-                  <SlotTile
-                    kpi={preferences.slots[0]!}
-                    index={0}
+                {(preferences.layout === "focus" ? [0] : [0, 1, 2, 3, 4]).map((index) => (
+                  <ReadingChoice
+                    key={index}
+                    kpi={preferences.slots[index]!}
+                    index={index}
                     disabled={!ready}
                     onChange={(kpi) =>
-                      save((current) => ({ slots: assignDreamSlot(current.slots, 0, kpi) }))
+                      save((current) => ({ slots: assignDreamSlot(current.slots, index, kpi) }))
                     }
                   />
-                  {preferences.layout === "dashboard"
-                    ? [1, 3].map((start) => (
-                        <View key={start} className="flex-row gap-3">
-                          {[start, start + 1].map((index) => (
-                            <SlotTile
-                              key={index}
-                              kpi={preferences.slots[index]!}
-                              index={index}
-                              disabled={!ready}
-                              onChange={(kpi) =>
-                                save((current) => ({
-                                  slots: assignDreamSlot(current.slots, index, kpi),
-                                }))
-                              }
-                            />
-                          ))}
-                        </View>
-                      ))
-                    : null}
-                </View>
+                ))}
               </SettingsSection>
             ) : null}
 
@@ -485,7 +417,7 @@ export function SettingsDeskDashboardRouteScreen() {
 
             <SettingsSection title="Reset">
               <ListActionRow
-                label="Reset tiles and look"
+                label="Reset readings and look"
                 description="Keeps your project and session choices."
                 disabled={!ready || !customized}
                 onPress={() =>

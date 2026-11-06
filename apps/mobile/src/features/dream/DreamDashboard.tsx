@@ -200,7 +200,12 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
       detail: "",
       color: STATUS_COLORS.partial,
     },
-    live: { text: "Live", title: "", detail: "", color: STATUS_COLORS.live },
+    live: {
+      text: `Live · ${live.length} ${live.length === 1 ? "machine" : "machines"}`,
+      title: "",
+      detail: "",
+      color: STATUS_COLORS.live,
+    },
   }[connectionState];
   return (
     <DreamScene

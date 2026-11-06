@@ -46,13 +46,7 @@ export interface DreamPreferences {
   readonly brightness: DreamBrightness;
   readonly pixelShift: boolean;
 }
-const DEFAULT_DREAM_SLOTS: readonly DreamKpi[] = [
-  "status",
-  "tokens",
-  "cost",
-  "limits",
-  "connections",
-];
+const DEFAULT_DREAM_SLOTS: readonly DreamKpi[] = ["status", "tokens", "cost", "limits", ""];
 export function dreamVisibleSlots(preferences: Pick<DreamPreferences, "layout" | "slots">) {
   return preferences.layout === "clock"
     ? []
@@ -94,7 +88,7 @@ export function resolveDreamQuota(
 }
 
 export function dreamClockFontSize(width: number, height: number) {
-  return Math.max(48, Math.min(width * 0.31, height * 0.32, 240));
+  return Math.max(48, Math.min(width * 0.36, height * 0.46, 320));
 }
 
 export function resolveDreamConnection(source: {
