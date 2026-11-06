@@ -25,7 +25,7 @@ export const DREAM_PALETTES = { theme: "Theme", mono: "Monochrome", amber: "Ambe
 export type DreamPalette = keyof typeof DREAM_PALETTES;
 export const DREAM_CLOCKS = { system: "System", "12": "12-hour", "24": "24-hour" } as const;
 export type DreamClock = keyof typeof DREAM_CLOCKS;
-export const DREAM_BRIGHTNESS = { full: "System", medium: "Medium", low: "Low" } as const;
+export const DREAM_BRIGHTNESS = { full: "Default", medium: "Medium", low: "Low" } as const;
 export type DreamBrightness = keyof typeof DREAM_BRIGHTNESS;
 export const DREAM_DIM_OPACITY: Record<DreamBrightness, number> = {
   full: 0,

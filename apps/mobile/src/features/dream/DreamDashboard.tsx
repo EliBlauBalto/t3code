@@ -244,9 +244,8 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
   const unavailable = connectionState !== "live" && connectionState !== "partial";
   const partial = connectionState === "partial";
   const tightest = resolveDreamQuota(quotas?.providers ?? [], now.getTime(), partial);
-  const number = (value: number) => (unavailable ? "–" : `${partial ? "~" : ""}${value}`);
-  const quotaRemaining =
-    tightest && !unavailable ? Math.max(0, Math.min(100, tightest.remaining)) : null;
+  const number = (value: number) => `${partial ? "~" : ""}${value}`;
+  const quotaRemaining = tightest ? Math.max(0, Math.min(100, tightest.remaining)) : null;
   const metric = (kpi: DreamKpi) => {
     switch (kpi) {
       case "tokens":
@@ -291,9 +290,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
           detail:
             tightest && quotaRemaining !== null
               ? `${tightest.partial ? "Partial · " : ""}${tightest.name} · ${tightest.label}`
-              : unavailable
-                ? "Waiting for live quota"
-                : "No quota available",
+              : "No quota available",
           alert: quotaRemaining !== null && quotaRemaining <= 10,
           progress: quotaRemaining,
         };
@@ -301,7 +298,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
         return {
           value: `${live.length}/${source.environmentIds.size}`,
           detail: "Live",
-          alert: source.environmentIds.size > 0 && live.length === 0,
+          alert: false,
         };
       case "working":
       case "input":

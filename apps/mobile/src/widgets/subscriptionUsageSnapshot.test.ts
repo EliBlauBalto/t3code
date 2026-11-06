@@ -165,16 +165,24 @@ describe("subscription widget snapshots", () => {
       Infinity,
       dreamScope,
     );
-    const signedOut = provider({
-      instanceId: ProviderInstanceId.make("not-signed-in"),
-      auth: { status: "unauthenticated" },
-      usageLimits: undefined,
-    });
-    local.providers = [...local.providers, signedOut];
-    expect
-      .soft(buildSubscriptionUsageSnapshot(input, deepLink, Infinity, dreamScope))
-      .toEqual(authenticatedSnapshot);
-    local.providers = local.providers.filter((entry) => entry !== signedOut);
+    for (const driver of ["codex", "claudeAgent"] as const) {
+      const signedOut = provider({
+        instanceId: ProviderInstanceId.make(`not-signed-in-${driver}`),
+        driver: ProviderDriverKind.make(driver),
+        auth: { status: "unauthenticated" },
+        usageLimits: undefined,
+      });
+      local.providers = [...local.providers, signedOut];
+      expect
+        .soft(buildSubscriptionUsageSnapshot(input, deepLink, Infinity, dreamScope))
+        .toEqual(authenticatedSnapshot);
+      if (driver === "claudeAgent") {
+        expect
+          .soft(buildSubscriptionUsageSnapshot(input, deepLink).providers.map((p) => p.name))
+          .toEqual(["Codex", "Claude"]);
+      }
+      local.providers = local.providers.filter((entry) => entry !== signedOut);
+    }
     local.providers = [...local.providers, failed];
     expect(
       buildSubscriptionUsageSnapshot(input, deepLink, Infinity, dreamScope).providers[0],

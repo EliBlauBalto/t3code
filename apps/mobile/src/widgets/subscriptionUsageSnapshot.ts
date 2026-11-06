@@ -141,6 +141,7 @@ export function buildSubscriptionUsageSnapshot(
           (provider) =>
             provider.enabled &&
             provider.installed &&
+            (includedEnvironmentIds === null || provider.auth.status !== "unauthenticated") &&
             provider.usageLimits?.unavailable?.reason !== "unsupported",
         )
         .map((provider) => provider.driver),

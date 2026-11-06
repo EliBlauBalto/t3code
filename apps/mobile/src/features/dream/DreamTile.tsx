@@ -45,7 +45,7 @@ export function DreamTile({
   const needsYou = (kpi: "input" | "questions") => counts[kpi] > 0;
   if (kpi === "") return <View style={[styles.card, frame]} />;
   const tileScale = dreamTileScale(scale, frame, large && kpi === "status", fontScale);
-  const compactStatus = kpi === "status" && (!large || frame.height < 180 * Math.max(1, fontScale));
+  const compactStatus = kpi === "status" && (!large || frame.height < 180);
   const statusRows = kpi === "status" ? resolveDreamStatusRows(counts) : [];
   const danger = value.alert || (kpi === "status" && (counts.failed > 0 || counts.limited > 0));
   const attention =
@@ -83,7 +83,7 @@ export function DreamTile({
         },
       ]}
     >
-      {!compactStatus ? (
+      {large || !compactStatus ? (
         <View style={[styles.cardLabel, focused && styles.focusLabel]}>
           <Text
             numberOfLines={1}

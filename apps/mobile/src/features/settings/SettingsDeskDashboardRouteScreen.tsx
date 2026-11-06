@@ -391,7 +391,6 @@ export function SettingsDeskDashboardRouteScreen() {
               <ListActionRow
                 label="Reset tiles and look"
                 description="Keeps your project and session choices."
-                tone="danger"
                 disabled={!ready || !customized}
                 onPress={() =>
                   save({
