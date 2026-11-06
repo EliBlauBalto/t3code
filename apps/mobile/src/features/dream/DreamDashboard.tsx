@@ -94,20 +94,17 @@ export function DreamDashboard() {
   const source = useDreamSources();
   const { isReady } = useAppearancePreferences();
   useAppStartupReady(isReady);
-  const quotaScope =
+  const quotaEnvironmentIds =
     source.initialized &&
     source.environmentIds.size > 0 &&
     dreamVisibleSlots(source.preferences).includes("limits")
-      ? JSON.stringify([...source.environmentIds].sort())
-      : null;
+      ? source.environmentIds
+      : EMPTY_ENVIRONMENTS;
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- refreshes selected-machine quota only while its native dream tile is visible
   useEffect(() => {
-    if (quotaScope === null) return;
-    return installSubscriptionUsageRefresh(
-      () => true,
-      new Set(JSON.parse(quotaScope) as EnvironmentId[]),
-    );
-  }, [quotaScope]);
+    if (quotaEnvironmentIds.size === 0) return;
+    return installSubscriptionUsageRefresh(() => true, quotaEnvironmentIds);
+  }, [quotaEnvironmentIds]);
   return <DreamDisplay source={source} />;
 }
 

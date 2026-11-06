@@ -168,7 +168,9 @@ export function buildSubscriptionUsageSnapshot(
   const sourceUnavailable = [...presentations.values()].some(
     (presentation) =>
       presentation.serverConfig === null ||
-      presentation.serverConfig.usageLimitSources?.some((source) => Boolean(source.error)),
+      presentation.serverConfig.usageLimitSources?.some(
+        (source) => Boolean(source.error) || source.accounts.length === 0,
+      ),
   );
   const unavailable = new Set<string>(
     [...presentations.values()]

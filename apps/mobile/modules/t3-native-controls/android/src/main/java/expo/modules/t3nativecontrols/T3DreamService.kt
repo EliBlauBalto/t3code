@@ -144,6 +144,8 @@ class T3DreamService : DreamService() {
 
   private fun resumeRenderer(): Boolean {
     // RN 0.88: keep Fabric and its dispatcher active without resuming ReactHost/AppState.
+    // On RN upgrades check cold/warm Dreams, context reload, clock advance,
+    // font-scale changes, and timer release on exit.
     val currentRenderer = renderer ?: return false
     val dispatcher = currentRenderer.eventDispatcher as? LifecycleEventListener
     return if (dispatcher == null) {

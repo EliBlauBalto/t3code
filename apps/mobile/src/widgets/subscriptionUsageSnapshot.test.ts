@@ -103,33 +103,35 @@ describe("subscription widget snapshots", () => {
     const config = input.get(EnvironmentId.make("env"))!.serverConfig;
     config.providers = [provider()];
     const widgetBeforeSourceFailure = buildSubscriptionUsageSnapshot(input, deepLink);
-    const failedSource = {
-      ...config.usageLimitSources[0]!,
-      error: "Fixture source could not enumerate accounts",
-      accounts: [],
-    };
-    config.usageLimitSources = [failedSource];
-    expect.soft(buildSubscriptionUsageSnapshot(input, deepLink)).toEqual(widgetBeforeSourceFailure);
-    expect
-      .soft(
-        buildSubscriptionUsageSnapshot(input, deepLink, Infinity, {
-          environmentIds: new Set(input.keys()),
-        }),
-      )
-      .toEqual(widgetBeforeSourceFailure);
-    expect(
-      buildSubscriptionUsageSnapshot(input, deepLink, Infinity, {
-        environmentIds: new Set(input.keys()),
-        qualifyCoverage: true,
-      }).providers[0],
-    ).toMatchObject({
-      windows: [{ remaining: 60 }],
-      partial: true,
-    });
+    const emptySource = { ...config.usageLimitSources[0]!, accounts: [] };
+    for (const error of [undefined, "Fixture source could not enumerate accounts"]) {
+      config.usageLimitSources = [{ ...emptySource, error }];
+      expect
+        .soft(buildSubscriptionUsageSnapshot(input, deepLink))
+        .toEqual(widgetBeforeSourceFailure);
+      expect
+        .soft(
+          buildSubscriptionUsageSnapshot(input, deepLink, Infinity, {
+            environmentIds: new Set(input.keys()),
+          }),
+        )
+        .toEqual(widgetBeforeSourceFailure);
+      expect
+        .soft(
+          buildSubscriptionUsageSnapshot(input, deepLink, Infinity, {
+            environmentIds: new Set(input.keys()),
+            qualifyCoverage: true,
+          }).providers[0],
+        )
+        .toMatchObject({
+          windows: [{ remaining: 60 }],
+          partial: true,
+        });
+    }
     for (const driver of ["codex", "claudeAgent"] as const) {
       config.usageLimitSources = [
         {
-          ...failedSource,
+          ...emptySource,
           error: undefined,
           accounts: [
             {
