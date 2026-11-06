@@ -1,5 +1,6 @@
 // @effect-diagnostics nodeBuiltinImport:off globalDate:off - Owns disposable fixture servers and the native test runner.
 import * as NodeChildProcess from "node:child_process";
+import * as NodeFS from "node:fs";
 import * as NodeFSP from "node:fs/promises";
 import * as NodeHttp from "node:http";
 import * as NodeNet from "node:net";
@@ -18,6 +19,39 @@ const waitForExit = (child: NodeChildProcess.ChildProcess) =>
   new Promise<number | null>((resolve, reject) => {
     child.once("error", reject);
     child.once("exit", resolve);
+  });
+const waitForImportedThread = (
+  database: NodeSqlite.DatabaseSync,
+  directory: string,
+  threadId: string,
+) =>
+  new Promise<void>((resolve, reject) => {
+    const watcher = NodeFS.watch(directory, { signal: AbortSignal.timeout(30_000) }, check);
+    watcher.once("error", reject);
+    watcher.once("close", () =>
+      reject(new Error(`Disposable thread ${threadId} import incomplete`)),
+    );
+    function check() {
+      try {
+        const ready = database
+          .prepare(`
+          SELECT 1 AS ready FROM orchestration_v2_projection_threads AS thread
+          WHERE thread_id = ? AND archived_at IS NULL AND deleted_at IS NULL
+            AND provider_instance_id IS NOT NULL AND payload_json IS NOT NULL
+            AND EXISTS (SELECT 1 FROM orchestration_v2_projection_messages AS message
+              WHERE message.thread_id = thread.thread_id AND message.role = 'user')
+        `)
+          .get(threadId);
+        if (ready?.ready === 1) {
+          resolve();
+          watcher.close();
+        }
+      } catch (error) {
+        reject(error);
+        watcher.close();
+      }
+    }
+    check();
   });
 const root = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "dream-fixture-"));
 try {
@@ -95,6 +129,11 @@ try {
       NodePath.join(environments[0]!.baseDir, "userdata", "statev2.sqlite"),
     );
     database.exec("PRAGMA busy_timeout = 5000");
+    await waitForImportedThread(
+      database,
+      NodePath.join(environments[0]!.baseDir, "userdata"),
+      fixtureThreadId,
+    );
     const thread = database
       .prepare(`
       SELECT provider_instance_id, payload_json FROM orchestration_v2_projection_threads
@@ -192,6 +231,11 @@ try {
         NodePath.join(environments[seed.environment]!.baseDir, "userdata", "statev2.sqlite"),
       );
       database.exec("PRAGMA busy_timeout = 5000");
+      await waitForImportedThread(
+        database,
+        NodePath.join(environments[seed.environment]!.baseDir, "userdata"),
+        seed.threadId,
+      );
       const thread = database
         .prepare(`
         SELECT provider_instance_id, payload_json FROM orchestration_v2_projection_threads
