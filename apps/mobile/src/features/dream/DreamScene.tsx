@@ -12,6 +12,7 @@ import {
 } from "../../lib/dreamDashboard";
 import { FONT_FAMILIES } from "../../lib/fontFamilies";
 import { dreamControls } from "../../lib/dreamSupport";
+import { themeColorWithAlpha } from "../../lib/mobileTheme";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { DreamReading, type DreamReadingValue } from "./DreamReading";
 import { useDreamClock } from "./useDreamDashboard";
@@ -41,7 +42,7 @@ export function resolveDreamPalette(
     ? {
         screen: base["--color-screen"],
         foreground: base["--color-foreground"],
-        secondary: base["--color-foreground-secondary"],
+        secondary: themeColorWithAlpha(base["--color-foreground"], 0.72),
         accent: base["--color-primary"],
         alert: "#dfad94",
       }
@@ -92,7 +93,6 @@ function ClockFace({
             color: colors.foreground,
             fontFamily: FONT_FAMILIES.medium,
             fontSize: size,
-            letterSpacing: -size * 0.055,
             fontVariant: ["tabular-nums"],
             includeFontPadding: false,
             flexShrink: 1,
@@ -125,6 +125,7 @@ function SessionReading({
   scale,
   primary = false,
   brief = false,
+  compact = false,
 }: {
   readonly counts: DreamCounts;
   readonly partial: boolean;
@@ -132,6 +133,7 @@ function SessionReading({
   readonly scale: number;
   readonly primary?: boolean;
   readonly brief?: boolean;
+  readonly compact?: boolean;
 }) {
   const rows = resolveDreamStatus(counts).filter((row) => row.value > 0);
   const first =
@@ -155,6 +157,11 @@ function SessionReading({
   const alert = first?.keys.some(
     (key) => key === "failed" || key === "limited" || key === "input" || key === "questions",
   );
+  const headlineColor = first?.keys.some((key) => key === "failed" || key === "limited")
+    ? colors.alert
+    : alert
+      ? colors.accent
+      : colors.foreground;
   const title = first ? `${count} ${first.value === 1 ? "session" : "sessions"}` : "";
   const secondary = brief ? rows : rows.filter((row) => row !== first);
   return (
@@ -169,13 +176,12 @@ function SessionReading({
           style={{
             color: colors.foreground,
             fontFamily: FONT_FAMILIES.medium,
-            fontSize: (primary ? 58 : 34) * scale,
-            lineHeight: (primary ? 62 : 39) * scale,
-            letterSpacing: (primary ? -2.2 : -1) * scale,
+            fontSize: (primary ? 58 : compact ? 28 : 34) * scale,
+            lineHeight: (primary ? 64 : compact ? 34 : 40) * scale,
           }}
         >
-          {title ? `${title}\n` : ""}
-          <Text style={{ color: alert ? colors.accent : colors.foreground }}>{action}</Text>
+          {title ? `${title}${compact ? " " : "\n"}` : ""}
+          <Text style={{ color: headlineColor }}>{action}</Text>
         </Text>
       ) : null}
       {secondary.length > 0 ? (
@@ -241,12 +247,13 @@ export function DreamScene({
   const width = bounds?.width ?? 0,
     height = bounds?.height ?? 0;
   const wide = width >= 600 && width > height;
-  const clockOnly = preferences.layout === "clock";
-  const focused = preferences.layout === "focus";
   const slots = preferences.slots.filter((slot) => slot !== "");
-  const main = preferences.slots[0] ?? "";
-  const supporting = preferences.slots.slice(1).filter((slot) => slot !== "");
-  const dense = supporting.length === 4 || fontScale >= 1.5;
+  const clockOnly =
+    preferences.layout === "clock" || (preferences.layout === "focus" && !preferences.slots[0]);
+  const focused = preferences.layout === "focus" && !clockOnly;
+  const main = !focused && slots.includes("status") ? "status" : (preferences.slots[0] ?? "");
+  const supporting = slots.filter((slot) => slot !== main);
+  const dense = (!focused && supporting.length === 4) || fontScale >= 1.5;
   const scale = Math.max(
     0.8,
     Math.min(1.7, width / (wide ? 900 : 360), height / (wide ? 500 : dense ? 720 : 640)),
@@ -264,6 +271,7 @@ export function DreamScene({
         scale={scale}
         primary={primary && focused}
         brief={!primary}
+        compact={!focused && dense}
       />
     ) : kpi === "" ? null : (
       <DreamReading
@@ -300,7 +308,9 @@ export function DreamScene({
           ? 28 * scale
           : clockOnly
             ? dreamClockFontSize(width - 72, height - 96)
-            : (dense ? 88 : 104) * scale * (wide ? 1.4 : 1)
+            : wide
+              ? height * (dense ? 0.18 : 0.22)
+              : (dense ? 88 : 104) * scale
       }
     />
   );
@@ -322,7 +332,9 @@ export function DreamScene({
       ]}
     >
       {bounds ? (
-        <View style={[styles.content, { transform: shift, gap: 22 * scale }]}>
+        <View
+          style={[styles.content, { transform: shift, gap: (wide && dense ? 16 : 22) * scale }]}
+        >
           {unavailable ? (
             <>
               <View style={{ gap: 12 * scale }}>
@@ -389,18 +401,13 @@ export function DreamScene({
                   <View style={wide ? styles.primaryWide : undefined}>{reading(main, true)}</View>
                 ) : null}
               </View>
-              {slots.length > 0 && supporting.length > 0 ? (
-                <View style={[styles.ledger, { gap: 12 * scale }]}>
-                  {supporting.includes("status") ? reading("status", false) : null}
-                  <View style={wide ? { flexDirection: "row", gap: 28 * scale } : undefined}>
-                    {supporting
-                      .filter((kpi) => kpi !== "status")
-                      .map((kpi) => (
-                        <View key={kpi} style={wide ? { flex: 1, minWidth: 0 } : undefined}>
-                          {reading(kpi, false)}
-                        </View>
-                      ))}
-                  </View>
+              {supporting.length > 0 ? (
+                <View style={[styles.ledger, wide && { flexDirection: "row", gap: 28 * scale }]}>
+                  {supporting.map((kpi) => (
+                    <View key={kpi} style={wide ? { flex: 1, minWidth: 0 } : undefined}>
+                      {reading(kpi, false)}
+                    </View>
+                  ))}
                 </View>
               ) : null}
             </>

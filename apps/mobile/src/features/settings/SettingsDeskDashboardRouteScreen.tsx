@@ -153,7 +153,9 @@ function ReadingChoice(props: {
   return (
     <DreamSelectionSheet
       title={label}
-      options={KPI_ACTIONS}
+      options={
+        props.index === 0 ? KPI_ACTIONS.filter((option) => option.id !== "empty") : KPI_ACTIONS
+      }
       selected={[props.kpi || "empty"]}
       disabled={props.disabled}
       onSelect={(id) => {
@@ -290,7 +292,11 @@ export function SettingsDeskDashboardRouteScreen() {
             {preferences.layout !== "clock" ? (
               <SettingsSection
                 title={preferences.layout === "focus" ? "Focus reading" : "Readings"}
-                footer="Usage and quota cover your selected machines. Readings already in use swap places."
+                footer={
+                  preferences.layout === "focus"
+                    ? "Focus shows the first reading. Usage and quota cover your selected machines."
+                    : "Session status stays at the top. Other readings follow your chosen order. Usage and quota cover selected machines."
+                }
               >
                 {(preferences.layout === "focus" ? [0] : [0, 1, 2, 3, 4]).map((index) => (
                   <ReadingChoice

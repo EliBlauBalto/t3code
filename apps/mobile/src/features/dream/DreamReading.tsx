@@ -31,7 +31,9 @@ export function DreamReading({
     readonly alert: string;
   };
 }) {
-  const label = DREAM_KPIS[kpi];
+  const estimatedCost = kpi === "cost" && reading.detail === "Estimated";
+  const label = estimatedCost ? "Est. 24h cost" : DREAM_KPIS[kpi];
+  const detail = estimatedCost || reading.detail === "Selected machines" ? "" : reading.detail;
   const value = (
     <Text
       adjustsFontSizeToFit
@@ -43,7 +45,6 @@ export function DreamReading({
         {
           color: reading.alert ? colors.alert : colors.foreground,
           fontSize: (primary ? (focused ? 104 : 68) : horizontal ? 42 : 36) * scale,
-          letterSpacing: (primary ? -5 : -1) * scale,
         },
         !primary && !horizontal && { maxWidth: "52%" },
       ]}
@@ -77,7 +78,7 @@ export function DreamReading({
         >
           {label}
         </Text>
-        {reading.detail ? (
+        {detail ? (
           <Text
             maxFontSizeMultiplier={1.4}
             style={{
@@ -86,7 +87,7 @@ export function DreamReading({
               fontSize: (primary ? (focused ? 19 : 16) : 15) * scale,
             }}
           >
-            {reading.detail}
+            {detail}
           </Text>
         ) : null}
       </View>
@@ -99,7 +100,7 @@ const styles = StyleSheet.create({
   reading: { minWidth: 0, gap: 8 },
   primary: { justifyContent: "center", gap: 16 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 18 },
-  column: { flex: 1, justifyContent: "flex-start" },
+  column: { justifyContent: "flex-start" },
   caption: { minWidth: 0, gap: 3 },
   value: {
     fontFamily: FONT_FAMILIES.medium,

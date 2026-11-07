@@ -265,29 +265,68 @@ public final class StartupInstrumentation extends Instrumentation {
       if ("Clock".equals(style)) {
         Rect summary = phraseBounds(root, "Session status.");
         if (summary == null) summary = phraseBounds(root, "need you");
-        return summary != null && !summary.isEmpty() && bounds.contains(summary);
+        return summary != null && !summary.isEmpty() && bounds.contains(summary) && statusRowsFit(root);
       }
       Rect status = phraseBounds(root, "Session status.");
       if (status == null || status.isEmpty() || !bounds.contains(status)) return false;
       if (!statusRowsFit(root)) return false;
       if (!"Dashboard".equals(style)) return true;
       for (String label : new String[] { "300K", "$0.96", "36%" }) {
-        Rect item = phraseBounds(root, label);
+        Rect item = textBounds(root, label);
         if (item == null || item.isEmpty() || !bounds.contains(item)) return false;
       }
-      Rect tokens = phraseBounds(root, "24h tokens.");
+      Rect tokens = textBounds(root, "24h tokens");
       if (tokens == null || tokens.isEmpty() || !bounds.contains(tokens)) return false;
-      return tokensPrimary ? tokens.bottom <= status.top : status.bottom <= tokens.top;
+      return status.bottom <= tokens.top && metricReadingsFit(root);
     }, 30000);
   }
 
   private boolean statusRowsFit(AccessibilityNodeInfo root) {
-    Rect summary = phraseBounds(root, "Session status.");
-    if (summary == null) summary = phraseBounds(root, "Partial session status.");
+    return readingFits(root, "Session status.") || readingFits(root, "Partial session status.");
+  }
+
+  private AccessibilityNodeInfo readingNode(AccessibilityNodeInfo node, String label) {
+    if (node == null) return null;
+    if (node.getContentDescription() != null && has(node.getContentDescription().toString(), label)) return node;
+    for (int index = 0; index < node.getChildCount(); index++) {
+      AccessibilityNodeInfo child = readingNode(node.getChild(index), label);
+      if (child != null) return child;
+    }
+    return null;
+  }
+
+  private int visibleTextCount(AccessibilityNodeInfo node, Rect reading) {
+    if (node == null) return 0;
+    int count = 0;
+    if (node.getText() != null && !node.getText().toString().trim().isEmpty()) {
+      Rect bounds = new Rect();
+      node.getBoundsInScreen(bounds);
+      if (bounds.isEmpty() || !reading.contains(bounds)) return -1;
+      count++;
+    }
+    for (int index = 0; index < node.getChildCount(); index++) {
+      int child = visibleTextCount(node.getChild(index), reading);
+      if (child < 0) return -1;
+      count += child;
+    }
+    return count;
+  }
+
+  private boolean readingFits(AccessibilityNodeInfo root, String label) {
+    AccessibilityNodeInfo node = readingNode(root, label);
+    if (node == null) return false;
+    Rect reading = new Rect();
+    node.getBoundsInScreen(reading);
     Rect screen = new Rect();
     root.getBoundsInScreen(screen);
-    // This checks the grouped reading's bounds; PNG review checks its individual glyphs.
-    return summary != null && !summary.isEmpty() && screen.contains(summary);
+    return !reading.isEmpty() && screen.contains(reading) && visibleTextCount(node, reading) > 0;
+  }
+
+  private boolean metricReadingsFit(AccessibilityNodeInfo root) {
+    for (String label : new String[] { "24h tokens.", "24h cost.", "Quota left." }) {
+      if (!readingFits(root, label)) return false;
+    }
+    return true;
   }
 
   private void tapText(UiAutomation automation, String text) {
@@ -715,7 +754,7 @@ public final class StartupInstrumentation extends Instrumentation {
                     return (bounds.width() > bounds.height()) == landscape
                         && status != null && !status.isEmpty() && bounds.contains(status)
                         && live != null && !live.isEmpty() && bounds.contains(live)
-                        && (!"Dashboard".equals(style) || has(screenText(root), "300K"));
+                        && statusRowsFit(root) && (!"Dashboard".equals(style) || metricReadingsFit(root));
                   }, 30000);
                   automation.waitForIdle(100, 30000);
                   String name = "blocked-" + style.toLowerCase(java.util.Locale.ROOT)
@@ -767,7 +806,7 @@ public final class StartupInstrumentation extends Instrumentation {
               if (dismissSystemDialog(automation, view) || !dreamVisible(root)) return false;
               Rect bounds = new Rect();
               root.getBoundsInScreen(bounds);
-              Rect tokens = phraseBounds(root, "24h tokens.");
+              Rect tokens = textBounds(root, "24h tokens");
               return has(view, online ? "Live" : "1 of 2 machines live")
                   && has(view, online ? "300K" : "150K")
                   && has(view, online ? "$0.96" : "$0.48")
@@ -786,7 +825,7 @@ public final class StartupInstrumentation extends Instrumentation {
               Rect bounds = new Rect();
               root.getBoundsInScreen(bounds);
               Rect status = phraseBounds(root, "Session status.");
-              Rect tokens = phraseBounds(root, "24h tokens.");
+              Rect tokens = textBounds(root, "24h tokens");
               String view = screenText(root);
               return (bounds.width() > bounds.height()) == landscape
                   && status != null && !status.isEmpty() && bounds.contains(status)
@@ -865,10 +904,10 @@ public final class StartupInstrumentation extends Instrumentation {
                 Rect item = phraseBounds(root, label);
                 if (item == null || item.isEmpty() || !bounds.contains(item)) return false;
               }
-              if (!"Clock".equals(style) && !statusRowsFit(root)) return false;
+              if (!statusRowsFit(root) || ("Dashboard".equals(style) && !metricReadingsFit(root))) return false;
               if ("Dashboard".equals(style) && expectedLandscape) {
                 Rect status = phraseBounds(root, "Session status.");
-                Rect tokens = phraseBounds(root, "24h tokens.");
+                Rect tokens = textBounds(root, "24h tokens");
                 if (tokens.top < status.bottom) return false;
               }
               return has(view, "Clock".equals(style) ? "working" : "Session status")
@@ -1000,7 +1039,7 @@ public final class StartupInstrumentation extends Instrumentation {
           Rect coldScreen = new Rect();
           coldRoot.getBoundsInScreen(coldScreen);
           Rect status = phraseBounds(coldRoot, "Session status.");
-          Rect tokens = phraseBounds(coldRoot, "24h tokens.");
+          Rect tokens = textBounds(coldRoot, "24h tokens");
           Rect liveStatus = phraseBounds(coldRoot, "Live");
           return coldScreen.width() > coldScreen.height()
               && status != null && tokens != null && !status.isEmpty() && !tokens.isEmpty()
