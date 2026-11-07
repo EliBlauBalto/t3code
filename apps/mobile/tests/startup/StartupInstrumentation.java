@@ -870,7 +870,7 @@ public final class StartupInstrumentation extends Instrumentation {
         exitDreamToSettings(automation, settings);
         selectMainReading(automation, "24h tokens", "Session status");
         selectStyle(automation, "Dashboard");
-        for (String palette : new String[] { "Amber night", "Monochrome", "Theme" }) {
+        for (String palette : new String[] { "Amber night", "Mono", "Theme" }) {
           scrollTo(automation, "Colors: " + palette);
           automation.executeAndWaitForEvent(() -> tapText(automation, "Colors: " + palette), event -> {
             AccessibilityNodeInfo option = namedNode(automation.getRootInActiveWindow(), "Colors: " + palette);
@@ -878,7 +878,8 @@ public final class StartupInstrumentation extends Instrumentation {
           }, 30000);
           if (!"Theme".equals(palette)) {
             awaitDream(automation, "300K");
-            capture(automation, "palette-" + palette.toLowerCase(java.util.Locale.ROOT).replace(' ', '-'));
+            capture(automation, "palette-" + ("Mono".equals(palette) ? "monochrome"
+                : palette.toLowerCase(java.util.Locale.ROOT).replace(' ', '-')));
             exitDreamToSettings(automation, settings);
           }
         }
