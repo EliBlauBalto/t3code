@@ -425,6 +425,10 @@ public final class StartupInstrumentation extends Instrumentation {
   private static final class ScrollEnd extends RuntimeException { }
 
   private void selectMainReading(UiAutomation automation, String current, String next) throws Exception {
+    selectMainReading(automation, current, next, null);
+  }
+
+  private void selectMainReading(UiAutomation automation, String current, String next, String captureName) throws Exception {
     String currentLabel = "Main reading: " + current;
     scrollTo(automation, currentLabel);
     automation.executeAndWaitForEvent(() -> tapText(automation, currentLabel), event -> {
@@ -445,6 +449,7 @@ public final class StartupInstrumentation extends Instrumentation {
       automation.waitForIdle(100, 30000);
     }
     scrollTo(automation, next);
+    if (captureName != null) capture(automation, captureName);
     awaitScreen(automation, () -> tapText(automation, next), "Main reading: " + next);
   }
 
@@ -603,7 +608,7 @@ public final class StartupInstrumentation extends Instrumentation {
       selectMainReading(automation, "Session status", "24h cost");
       selectMainReading(automation, "24h cost", "Session status");
       result.putString("tileSelection", "PASS");
-      scrollTo(automation, "Main reading: Session status");
+      scrollTo(automation, "Reading 4: Empty");
       capture(automation, "settings-readings");
       scrollTo(automation, "Dashboard style", AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD);
       selectStyle(automation, "Clock");
@@ -729,7 +734,7 @@ public final class StartupInstrumentation extends Instrumentation {
             automation.setRotation(UiAutomation.ROTATION_FREEZE_0);
             restoreSettingsAfterResize(automation, settings, launch);
             selectStyle(automation, "Dashboard");
-            selectMainReading(automation, "Session status", "24h tokens");
+            selectMainReading(automation, "Session status", "24h tokens", "reading-picker");
             for (String style : new String[] { "Dashboard", "Focus", "Clock" }) {
               if ("Focus".equals(style)) {
                 selectMainReading(automation, "24h tokens", "Session status");
@@ -853,7 +858,7 @@ public final class StartupInstrumentation extends Instrumentation {
         awaitScreen(automation, () -> tapText(automation, "Full-screen preview"), "300K");
         capture(automation, "populated-in-app-preview");
         awaitScreen(automation, () -> tapText(automation, "Close preview"), "Full-screen preview");
-        scrollTo(automation, "Main reading: Session status");
+        scrollTo(automation, "Reading 4: Empty");
         capture(automation, "settings-tile-editor-visible");
         selectStyle(automation, "Focus");
         selectMainReading(automation, "Session status", "24h tokens");

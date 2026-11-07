@@ -12,7 +12,7 @@ import {
 } from "../../lib/dreamDashboard";
 import { FONT_FAMILIES } from "../../lib/fontFamilies";
 import { dreamControls } from "../../lib/dreamSupport";
-import { themeColorWithAlpha } from "../../lib/mobileTheme";
+import { themeColorWithAlpha, themeColorWithContrast } from "../../lib/mobileTheme";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { DreamReading, type DreamReadingValue } from "./DreamReading";
 import { useDreamClock } from "./useDreamDashboard";
@@ -43,7 +43,7 @@ export function resolveDreamPalette(
         screen: base["--color-screen"],
         foreground: base["--color-foreground"],
         secondary: themeColorWithAlpha(base["--color-foreground"], 0.72),
-        accent: base["--color-primary"],
+        accent: themeColorWithContrast(base["--color-primary"], base["--color-screen"], 7),
         alert: "#dfad94",
       }
     : PALETTES[palette];
@@ -142,13 +142,13 @@ function SessionReading({
     rows.find((row) => row.keys[0] === "limited") ??
     rows.find((row) => row.keys[0] === "waiting") ??
     rows[0];
-  const count = first ? `${partial ? "~" : ""}${first.value}` : "";
+  const count = first ? `${first.value}${partial ? "+" : ""}` : "";
   const action = !first
     ? partial
       ? "No live activity."
       : "All quiet."
     : first.keys[0] === "input"
-      ? first.value === 1
+      ? first.value === 1 && !partial
         ? "needs you."
         : "need you."
       : first.keys[0] === "limited"
@@ -162,7 +162,7 @@ function SessionReading({
     : alert
       ? colors.accent
       : colors.foreground;
-  const title = first ? `${count} ${first.value === 1 ? "session" : "sessions"}` : "";
+  const title = first ? `${count} ${first.value === 1 && !partial ? "session" : "sessions"}` : "";
   const secondary = brief ? rows : rows.filter((row) => row !== first);
   return (
     <View
@@ -176,8 +176,8 @@ function SessionReading({
           style={{
             color: colors.foreground,
             fontFamily: FONT_FAMILIES.medium,
-            fontSize: (primary ? 58 : compact ? 28 : 34) * scale,
-            lineHeight: (primary ? 64 : compact ? 34 : 40) * scale,
+            fontSize: (primary ? 54 : 34) * scale,
+            lineHeight: (primary ? 62 : 40) * scale,
           }}
         >
           {title ? `${title}${compact ? " " : "\n"}` : ""}
@@ -196,9 +196,10 @@ function SessionReading({
                   : colors.secondary,
                 fontFamily: FONT_FAMILIES.regular,
                 fontSize: (brief ? 20 : 17) * scale,
+                maxWidth: "100%",
               }}
             >
-              {`${partial ? "~" : ""}${row.value}\u00a0${row.label.toLowerCase().replaceAll(" ", "\u00a0")}`}
+              {`${row.value}${partial ? "+" : ""}\u00a0${brief ? `${row.value === 1 && !partial ? "session" : "sessions"} ` : ""}${row.keys[0] === "input" && brief ? (row.value === 1 && !partial ? "needs you" : "need you") : row.label.toLowerCase()}`}
             </Text>
           ))}
         </View>
@@ -253,11 +254,13 @@ export function DreamScene({
   const focused = preferences.layout === "focus" && !clockOnly;
   const main = !focused && slots.includes("status") ? "status" : (preferences.slots[0] ?? "");
   const supporting = slots.filter((slot) => slot !== main);
-  const dense = (!focused && supporting.length === 4) || fontScale >= 1.5;
+  const dense = !focused && supporting.length === 4;
   const scale = Math.max(
     0.8,
-    Math.min(1.7, width / (wide ? 900 : 360), height / (wide ? 500 : dense ? 720 : 640)),
+    Math.min(2.6, width / (wide ? 760 : 360), height / (wide ? 420 : dense ? 720 : 640)),
   );
+  const heroScale = Math.max(scale, Math.min(3, Math.min(width, height) / 360));
+  const spacingScale = scale * (fontScale >= 1.5 ? 0.75 : 1);
   const minute = now.getMinutes();
   const shift = preferences.pixelShift
     ? [{ translateX: minute % 2 ? 6 : -6 }, { translateY: Math.floor(minute / 2) % 2 ? 6 : -6 }]
@@ -268,7 +271,7 @@ export function DreamScene({
         counts={counts}
         partial={partial}
         colors={colors}
-        scale={scale}
+        scale={primary ? heroScale : scale}
         primary={primary && focused}
         brief={!primary}
         compact={!focused && dense}
@@ -280,7 +283,8 @@ export function DreamScene({
         primary={primary}
         focused={focused}
         horizontal={wide && !primary}
-        scale={scale}
+        scale={primary && focused ? heroScale : scale}
+        spacingScale={spacingScale}
         colors={colors}
       />
     );
@@ -309,8 +313,8 @@ export function DreamScene({
           : clockOnly
             ? dreamClockFontSize(width - 72, height - 96)
             : wide
-              ? height * (dense ? 0.18 : 0.22)
-              : (dense ? 88 : 104) * scale
+              ? height * 0.22
+              : 104 * scale
       }
     />
   );
@@ -333,7 +337,10 @@ export function DreamScene({
     >
       {bounds ? (
         <View
-          style={[styles.content, { transform: shift, gap: (wide && dense ? 16 : 22) * scale }]}
+          style={[
+            styles.content,
+            { transform: shift, gap: (wide && dense ? 16 : 22) * spacingScale },
+          ]}
         >
           {unavailable ? (
             <>
@@ -390,10 +397,12 @@ export function DreamScene({
                 style={[
                   styles.overview,
                   wide && styles.overviewWide,
-                  { gap: (dense ? 20 : 28) * scale },
+                  { gap: (dense ? 20 : 28) * spacingScale },
                 ]}
               >
-                <View style={[styles.overviewClock, { gap: 12 * scale }]}>
+                <View
+                  style={[styles.overviewClock, wide && { flex: 1 }, { gap: 12 * spacingScale }]}
+                >
                   {date}
                   {clock(false)}
                 </View>
@@ -414,7 +423,17 @@ export function DreamScene({
           )}
           {preferences.showStatus ? (
             <View style={styles.connection}>
-              <View style={[styles.dot, { backgroundColor: connection.color }]} />
+              <View
+                style={[
+                  styles.dot,
+                  {
+                    width: 6 * scale,
+                    height: 6 * scale,
+                    backgroundColor:
+                      preferences.palette === "theme" ? connection.color : colors.secondary,
+                  },
+                ]}
+              />
               <Text
                 maxFontSizeMultiplier={1.4}
                 style={{
@@ -493,7 +512,7 @@ export function DreamSampleScene({ preferences }: { readonly preferences: DreamP
 const styles = StyleSheet.create({
   root: { flex: 1, alignItems: "center" },
   content: { flex: 1, width: "100%", maxWidth: 1280 },
-  overview: { flex: 1, minHeight: 0, justifyContent: "space-between", paddingBottom: 4 },
+  overview: { flex: 1, minHeight: 0, justifyContent: "space-evenly", paddingBottom: 4 },
   overviewWide: { flexDirection: "row", alignItems: "center" },
   overviewClock: { minWidth: 0, flexShrink: 1 },
   primaryWide: { flex: 1, minWidth: 0 },
@@ -509,5 +528,5 @@ const styles = StyleSheet.create({
   support: { flexDirection: "row", flexWrap: "wrap" },
   ledger: { gap: 0 },
   connection: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8 },
-  dot: { width: 5, height: 5, borderRadius: 3 },
+  dot: { borderRadius: 20 },
 });

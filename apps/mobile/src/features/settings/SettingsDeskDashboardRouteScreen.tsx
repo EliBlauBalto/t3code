@@ -17,11 +17,14 @@ import {
   normalizeDreamPreferences,
   type DreamKpi,
   type DreamLayout,
+  type DreamPalette,
   type DreamPreferences,
 } from "../../lib/dreamDashboard";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import { useDreamSources } from "../dream/useDreamDashboard";
 import { DreamPreview } from "../dream/DreamPreview";
+import { resolveDreamPalette } from "../dream/DreamScene";
+import { useAppearancePreferences } from "./appearance/AppearancePreferencesProvider";
 import { DreamSelectionSheet } from "../dream/DreamSelectionSheet";
 import { dreamControls, supportsDream } from "../../lib/dreamSupport";
 import { SettingsScreen } from "./components/SettingsScreen";
@@ -48,9 +51,12 @@ const layoutDescriptions: Record<DreamLayout, string> = {
 
 function LayoutChoice(props: {
   readonly selected: DreamLayout;
+  readonly palette: DreamPalette;
   readonly disabled: boolean;
   readonly onSelect: (layout: DreamLayout) => void;
 }) {
+  const { themeVariablesByAppearance } = useAppearancePreferences();
+  const colors = resolveDreamPalette(props.palette, themeVariablesByAppearance.dark);
   return (
     <View
       accessibilityRole="radiogroup"
@@ -80,7 +86,7 @@ function LayoutChoice(props: {
               height: 92,
               borderRadius: 10,
               padding: 9,
-              backgroundColor: "#0b0c0f",
+              backgroundColor: colors.screen,
               overflow: "hidden",
             }}
           >
@@ -91,9 +97,8 @@ function LayoutChoice(props: {
                 allowFontScaling={false}
                 className="font-t3-medium"
                 style={{
-                  color: "#e5e5e5",
+                  color: colors.foreground,
                   fontSize: value === "clock" ? 27 : value === "dashboard" ? 23 : 10,
-                  letterSpacing: -1,
                 }}
               >
                 9:41
@@ -104,12 +109,13 @@ function LayoutChoice(props: {
                     allowFontScaling={false}
                     className="font-t3-medium"
                     style={{
-                      color: "#d9b88a",
+                      color: colors.foreground,
                       fontSize: value === "focus" ? 15 : 10,
                       lineHeight: value === "focus" ? 17 : 12,
                     }}
                   >
-                    1 session{"\n"}needs you.
+                    1 session{"\n"}
+                    <Text style={{ color: colors.accent }}>needs you.</Text>
                   </Text>
                   {value === "dashboard" ? (
                     <View
@@ -263,12 +269,16 @@ export function SettingsDeskDashboardRouteScreen() {
           </Text>
         ) : (
           <>
-            <SettingsSection title="Style" footer={layoutDescriptions[preferences.layout]}>
+            <SettingsSection title="Style">
               <LayoutChoice
                 selected={preferences.layout}
+                palette={preferences.palette}
                 disabled={!ready}
                 onSelect={set("layout")}
               />
+              <Text textRole="footnote" className="px-4 pb-3 text-foreground-muted">
+                {layoutDescriptions[preferences.layout]}
+              </Text>
               <DreamPreview source={source} />
               <ListActionRow
                 label="Set as screen saver"

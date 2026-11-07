@@ -98,7 +98,7 @@ export function DreamDisplay({ source }: { readonly source: ReturnType<typeof us
   const unavailable = connectionState !== "live" && connectionState !== "partial";
   const partial = connectionState === "partial";
   const tightest = resolveDreamQuota(quotas?.providers ?? [], now.getTime(), partial);
-  const number = (value: number) => `${partial ? "~" : ""}${value}`;
+  const number = (value: number) => `${value}${partial ? "+" : ""}`;
   const quotaRemaining = tightest ? Math.max(0, Math.min(100, tightest.remaining)) : null;
   const metric = (kpi: DreamKpi) => {
     switch (kpi) {

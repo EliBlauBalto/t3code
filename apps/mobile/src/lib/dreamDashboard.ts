@@ -88,7 +88,7 @@ export function resolveDreamQuota(
 }
 
 export function dreamClockFontSize(width: number, height: number) {
-  return Math.max(48, Math.min(width * 0.36, height * 0.46, 320));
+  return Math.max(48, Math.min(width * 0.36, height * 0.46, 480));
 }
 
 export function resolveDreamConnection(source: {

@@ -17,6 +17,7 @@ export function DreamReading({
   focused = false,
   horizontal = false,
   scale,
+  spacingScale,
   colors,
 }: {
   readonly kpi: DreamKpi;
@@ -25,6 +26,7 @@ export function DreamReading({
   readonly focused?: boolean;
   readonly horizontal?: boolean;
   readonly scale: number;
+  readonly spacingScale: number;
   readonly colors: {
     readonly foreground: string;
     readonly secondary: string;
@@ -39,14 +41,14 @@ export function DreamReading({
       adjustsFontSizeToFit
       minimumFontScale={0.65}
       numberOfLines={1}
-      maxFontSizeMultiplier={1.15}
+      maxFontSizeMultiplier={1.2}
       style={[
         styles.value,
         {
           color: reading.alert ? colors.alert : colors.foreground,
           fontSize: (primary ? (focused ? 104 : 68) : horizontal ? 42 : 36) * scale,
         },
-        !primary && !horizontal && { maxWidth: "52%" },
+        !primary && !horizontal && { flex: 1, textAlign: "right" },
       ]}
     >
       {reading.value}
@@ -62,14 +64,14 @@ export function DreamReading({
         !primary && {
           borderTopColor: themeColorWithAlpha(colors.secondary, 0.2),
           borderTopWidth: StyleSheet.hairlineWidth,
-          paddingVertical: 12 * scale,
+          paddingVertical: 12 * spacingScale,
         },
       ]}
     >
       {horizontal && !primary ? value : null}
-      <View style={[styles.caption, !primary && !horizontal && { flex: 1 }]}>
+      <View style={[styles.caption, !primary && !horizontal && { flex: 1.5 }]}>
         <Text
-          maxFontSizeMultiplier={1.5}
+          maxFontSizeMultiplier={1.4}
           style={{
             color: colors.secondary,
             fontFamily: FONT_FAMILIES.regular,
