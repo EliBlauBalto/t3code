@@ -257,7 +257,7 @@ public final class StartupInstrumentation extends Instrumentation {
       root.getBoundsInScreen(bounds);
       Rect live = phraseBounds(root, "Live");
       String clockValue = clockText(automation);
-      Rect clock = clockValue.isEmpty() ? null : textBounds(root, clockValue);
+      Rect clock = clockValue.isEmpty() ? null : phraseBounds(root, clockValue);
       if ((bounds.width() > bounds.height()) != landscape
           || live == null || live.isEmpty() || !bounds.contains(live)
           || clock == null || clock.isEmpty() || !bounds.contains(clock)
