@@ -63,7 +63,7 @@ export function DreamReading({
         primary ? styles.primary : horizontal ? styles.column : styles.row,
         !primary && {
           borderTopColor: themeColorWithAlpha(colors.secondary, 0.2),
-          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopWidth: 0.5,
           paddingVertical: 12 * spacingScale,
         },
       ]}

@@ -4,6 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 
 import { AppText as Text } from "../../components/ui/AppText";
 import { ListActionRow } from "../../components/ui/ListActionRow";
+import { ListRow } from "../../components/ui/ListRow";
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import { cn } from "../../lib/cn";
@@ -170,7 +171,7 @@ function ReadingChoice(props: {
       }}
     >
       {(open) => (
-        <ListActionRow
+        <ListRow
           label={`${label}: ${DREAM_KPIS[props.kpi]}`}
           disabled={props.disabled}
           onPress={open}

@@ -84,36 +84,33 @@ function ClockFace({
   const period = parts.find((part) => part.type === "dayPeriod")?.value;
   return (
     <View style={[styles.clock, central && { alignItems: "center" }]}>
-      <View style={styles.timeRow}>
-        <Text
-          adjustsFontSizeToFit
-          numberOfLines={1}
-          maxFontSizeMultiplier={1.05}
-          style={{
-            color: colors.foreground,
-            fontFamily: FONT_FAMILIES.medium,
-            fontSize: size,
-            fontVariant: ["tabular-nums"],
-            includeFontPadding: false,
-            flexShrink: 1,
-          }}
-        >
-          {time}
-        </Text>
+      <Text
+        adjustsFontSizeToFit
+        numberOfLines={1}
+        maxFontSizeMultiplier={1.05}
+        style={{
+          color: colors.foreground,
+          fontFamily: FONT_FAMILIES.medium,
+          fontSize: size,
+          fontVariant: ["tabular-nums"],
+          includeFontPadding: false,
+          maxWidth: "100%",
+          flexShrink: 1,
+        }}
+      >
+        {time}
         {period ? (
           <Text
-            maxFontSizeMultiplier={1.3}
             style={{
               color: colors.secondary,
               fontFamily: FONT_FAMILIES.regular,
-              fontSize: compact ? 16 : Math.max(18, size * 0.13),
-              paddingLeft: compact ? 6 : 10,
+              fontSize: size * (compact ? 0.4 : 0.13),
             }}
           >
-            {period}
+            {"\u2009" + period}
           </Text>
         ) : null}
-      </View>
+      </Text>
     </View>
   );
 }
@@ -193,7 +190,9 @@ function SessionReading({
               style={{
                 color: row.keys.some((key) => key === "failed" || key === "limited")
                   ? colors.alert
-                  : colors.secondary,
+                  : row.keys.some((key) => key === "input" || key === "questions")
+                    ? colors.accent
+                    : colors.secondary,
                 fontFamily: FONT_FAMILIES.regular,
                 fontSize: (brief ? 20 : 17) * scale,
                 maxWidth: "100%",
@@ -331,7 +330,6 @@ export function DreamScene({
         styles.root,
         {
           backgroundColor: colors.screen,
-          padding: (wide ? 34 : 28) * scale + (preferences.pixelShift ? 6 : 0),
         },
       ]}
     >
@@ -339,7 +337,11 @@ export function DreamScene({
         <View
           style={[
             styles.content,
-            { transform: shift, gap: (wide && dense ? 16 : 22) * spacingScale },
+            {
+              transform: shift,
+              gap: (wide && dense ? 16 : 22) * spacingScale,
+              padding: (wide ? 34 : 28) * scale + (preferences.pixelShift ? 6 : 0),
+            },
           ]}
         >
           {unavailable ? (
@@ -510,8 +512,8 @@ export function DreamSampleScene({ preferences }: { readonly preferences: DreamP
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, alignItems: "center" },
-  content: { flex: 1, width: "100%", maxWidth: 1280 },
+  root: { flex: 1, minHeight: 0, alignItems: "center" },
+  content: { flex: 1, minHeight: 0, width: "100%", maxWidth: 1280 },
   overview: { flex: 1, minHeight: 0, justifyContent: "space-evenly", paddingBottom: 4 },
   overviewWide: { flexDirection: "row", alignItems: "center" },
   overviewClock: { minWidth: 0, flexShrink: 1 },
@@ -523,7 +525,6 @@ const styles = StyleSheet.create({
     gap: 18,
   },
   clock: { minWidth: 0 },
-  timeRow: { flexDirection: "row", alignItems: "baseline", minWidth: 0 },
   center: { flex: 1, minHeight: 0, justifyContent: "center" },
   support: { flexDirection: "row", flexWrap: "wrap" },
   ledger: { gap: 0 },

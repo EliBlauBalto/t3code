@@ -831,11 +831,14 @@ public final class StartupInstrumentation extends Instrumentation {
               root.getBoundsInScreen(bounds);
               Rect status = phraseBounds(root, "Session status.");
               Rect tokens = textBounds(root, "24h tokens");
+              Rect connection = textBounds(root, "Live \u00b7 2 machines");
               String view = screenText(root);
               return (bounds.width() > bounds.height()) == landscape
                   && status != null && !status.isEmpty() && bounds.contains(status)
                   && tokens != null && !tokens.isEmpty() && bounds.contains(tokens)
                   && (!landscape || tokens.top >= status.bottom)
+                  && connection != null && connection.height() > 8
+                  && bounds.contains(connection) && connection.bottom <= bounds.bottom - 8
                   && has(view, "300K") && has(view, "$0.96") && has(view, "36%");
             }, 30000);
             capture(automation, landscape ? "active-rotation-landscape" : "active-rotation-portrait");
@@ -1071,7 +1074,10 @@ public final class StartupInstrumentation extends Instrumentation {
             Rect compact = phraseBounds(activeRoot, "Session status.");
             Rect displayBounds = new Rect();
             activeRoot.getBoundsInScreen(displayBounds);
-            return compact != null && !compact.isEmpty() && displayBounds.contains(compact)
+            Rect connection = textBounds(activeRoot, "Live \u00b7 2 machines");
+            return connection != null && connection.height() > 8
+                && displayBounds.contains(connection) && connection.bottom <= displayBounds.bottom - 8
+                && compact != null && !compact.isEmpty() && displayBounds.contains(compact)
                 && phraseBounds(activeRoot, "300K") != null;
           }, 30000);
           if (activeDreamPid.isEmpty() || !activeDreamPid.equals(shell(automation, "pidof " + appId))) {
