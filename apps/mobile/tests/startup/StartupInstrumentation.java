@@ -608,7 +608,7 @@ public final class StartupInstrumentation extends Instrumentation {
       selectMainReading(automation, "Session status", "24h cost");
       selectMainReading(automation, "24h cost", "Session status");
       result.putString("tileSelection", "PASS");
-      scrollTo(automation, "Reading 4: Empty");
+      scrollTo(automation, "Reading 4: None");
       capture(automation, "settings-readings");
       scrollTo(automation, "Dashboard style", AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD);
       selectStyle(automation, "Clock");
@@ -861,7 +861,7 @@ public final class StartupInstrumentation extends Instrumentation {
         awaitScreen(automation, () -> tapText(automation, "Full-screen preview"), "300K");
         capture(automation, "populated-in-app-preview");
         awaitScreen(automation, () -> tapText(automation, "Close preview"), "Full-screen preview");
-        scrollTo(automation, "Reading 4: Empty");
+        scrollTo(automation, "Reading 4: None");
         capture(automation, "settings-tile-editor-visible");
         selectStyle(automation, "Focus");
         selectMainReading(automation, "Session status", "24h tokens");

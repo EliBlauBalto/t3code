@@ -165,11 +165,11 @@ function SessionReading({
     <View
       accessible
       accessibilityLabel={dreamStatusSummary(counts, partial)}
-      style={{ minWidth: 0, gap: 14 * scale }}
+      style={{ minWidth: 0, gap: (primary || brief ? 14 : 8) * scale }}
     >
       {!brief ? (
         <Text
-          maxFontSizeMultiplier={1.25}
+          maxFontSizeMultiplier={primary ? 1.25 : 1.1}
           style={{
             color: colors.foreground,
             fontFamily: FONT_FAMILIES.medium,
@@ -186,7 +186,7 @@ function SessionReading({
           {secondary.map((row) => (
             <Text
               key={row.keys.join(":")}
-              maxFontSizeMultiplier={1.5}
+              maxFontSizeMultiplier={brief ? 1.5 : 1.25}
               style={{
                 color: row.keys.some((key) => key === "failed" || key === "limited")
                   ? colors.alert
@@ -399,7 +399,7 @@ export function DreamScene({
                 style={[
                   styles.overview,
                   wide && styles.overviewWide,
-                  { gap: (dense ? 20 : 28) * spacingScale },
+                  { gap: (dense ? 20 : 28) * scale },
                 ]}
               >
                 <View

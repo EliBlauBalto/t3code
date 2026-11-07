@@ -16,7 +16,7 @@ export const DREAM_KPIS = {
   cost: "24h cost",
   limits: "Quota left",
   connections: "Machines",
-  "": "Empty",
+  "": "None",
 } as const;
 export type DreamKpi = keyof typeof DREAM_KPIS;
 export const DREAM_LAYOUTS = { dashboard: "Dashboard", focus: "Focus", clock: "Clock" } as const;

@@ -306,7 +306,7 @@ export function SettingsDeskDashboardRouteScreen() {
                 footer={
                   preferences.layout === "focus"
                     ? "Focus shows the first reading. Usage and quota cover your selected machines."
-                    : "Session status stays at the top. Other readings follow your chosen order. Usage and quota cover selected machines."
+                    : "When included, session status leads Dashboard. Main reading leads Focus. Usage and quota cover selected machines."
                 }
               >
                 {(preferences.layout === "focus" ? [0] : [0, 1, 2, 3, 4]).map((index) => (
