@@ -70,7 +70,7 @@ describe("mobile preferences state", () => {
       Effect.gen(function* () {
         let stored: MobileDatabase.StoredPreferencesJson | null = null;
         const database = MobileDatabase.MobileDatabase.of({
-          loadCache: () => Effect.succeed(Option.none()),
+          loadCache: () => Effect.succeedNone,
           listCache: () => Effect.succeed([]),
           saveCache: () => Effect.void,
           removeCache: () => Effect.void,

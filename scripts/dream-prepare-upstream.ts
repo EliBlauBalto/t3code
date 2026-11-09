@@ -5,7 +5,7 @@ import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 import * as NodeZlib from "node:zlib";
 
-const base = "a21d788752695764028e6d26ba924f3963e05806";
+const base = "bf469bb19669671d0df2efda74ed73867a7137c0";
 const expectedTree = process.env.T3_DREAM_UPSTREAM_TREE ?? "";
 if (!/^[a-f0-9]{40}$/.test(expectedTree)) throw new Error("Expected upstream tree is required");
 const directory = NodePath.resolve("../dream-upstream-candidate");
