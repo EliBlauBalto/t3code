@@ -60,8 +60,37 @@ fi
 
 adb shell getprop ro.product.cpu.abilist | tee "$output/abis.txt"
 adb shell getprop ro.dalvik.vm.native.bridge | tee "$output/native-bridge.txt"
-adb install --no-incremental "$apk"
-adb install --no-incremental "$output/test.apk"
+snapshot_dream_preferences() {
+  local snapshot="$1" database temporary
+  database="$(adb shell find "/data/user/0/$app_id" -name t3code-client.db -print | tr -d '\r')"
+  [[ -n "$database" && "$database" != *$'\n'* ]] || { echo 'Expected one installed client database' >&2; exit 1; }
+  temporary="$(mktemp -d)"
+  adb pull "$database" "$temporary/t3code-client.db" > /dev/null
+  adb pull "$database-wal" "$temporary/t3code-client.db-wal" > /dev/null 2>&1 || true
+  python3 - "$temporary/t3code-client.db" "$snapshot" <<'PY'
+import hashlib, json, sqlite3, sys
+with sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True) as database:
+    row = database.execute("SELECT payload FROM client_preferences WHERE singleton = 1").fetchone()
+    preferences = json.loads(row[0]) if row else {}
+dream = preferences.get("dreamDashboard")
+assert isinstance(dream, dict) and dream, "Saved Dream settings are missing"
+encoded = json.dumps(dream, sort_keys=True, separators=(",", ":")).encode()
+with open(sys.argv[2], "w") as output:
+    json.dump({"dreamPreferencesSha256": hashlib.sha256(encoded).hexdigest()}, output)
+PY
+}
+
+upgrade_from="${T3_DREAM_UPGRADE_FROM_APK:-}"
+if [[ -n "$upgrade_from" ]]; then
+  [[ "$app_id" == com.t3tools.t3code.dream ]] || { echo 'Installed updates require the private Dream package' >&2; exit 1; }
+  T3_DREAM_UPGRADE_FROM_APK= bash "$directory/run.sh" "$upgrade_from" "$output/previous"
+  adb shell am force-stop "$app_id"
+  adb root
+  adb wait-for-device
+  snapshot_dream_preferences "$output/upgrade-preferences-before.json"
+fi
+adb install -r --no-incremental "$apk" | tee "$output/install.txt"
+adb install -r --no-incremental "$output/test.apk"
 # SoLoader uses the host ABI for direct APK loading under Android's ARM translation.
 # Extract the unchanged ARM libraries into PackageManager's native library directory.
 if [[ "$(adb shell getprop ro.dalvik.vm.native.bridge)" == *libndk_translation* ]]; then
@@ -78,10 +107,14 @@ adb shell settings put secure screensaver_enabled 1
 adb shell settings put secure screensaver_components "$app_id/expo.modules.t3nativecontrols.T3DreamService"
 adb logcat -c
 fixture="$(printf '%s' "${T3_DREAM_FIXTURE:-[]}" | base64 -w0)"
-adb shell am instrument -w -e fixture "$fixture" -e appId "$app_id" com.t3tools.startuptest/.StartupInstrumentation | tee "$output/result.txt"
+if [[ -z "$upgrade_from" ]]; then
+  adb shell am instrument -w -e fixture "$fixture" -e appId "$app_id" com.t3tools.startuptest/.StartupInstrumentation | tee "$output/result.txt"
+  grep -q 'startup=PASS' "$output/result.txt"
+fi
 adb logcat -d -v threadtime > "$output/logcat.txt"
-adb pull /sdcard/Android/data/com.t3tools.startuptest/files/ "$output/capture" || true
-grep -q 'startup=PASS' "$output/result.txt"
+if [[ -z "$upgrade_from" ]]; then
+  adb pull /sdcard/Android/data/com.t3tools.startuptest/files/ "$output/capture" || true
+fi
 adb shell am instrument -w -e appId "$app_id" com.t3tools.startuptest/.DreamReloadInstrumentation | tee "$output/reload-result.txt"
 adb logcat -d -v threadtime > "$output/reload-logcat.txt"
 mkdir -p "$output/capture"
@@ -91,7 +124,13 @@ for name in reload-before reload-after reload-clock-advanced reload-returned-to-
   done
 done
 grep -q 'reload=PASS' "$output/reload-result.txt"
-if grep -Eq 'T3DreamService.*RN 0\.88.*unavailable' "$output/logcat.txt" "$output/reload-logcat.txt"; then
+if [[ -n "$upgrade_from" ]]; then
+  adb shell am force-stop "$app_id"
+  snapshot_dream_preferences "$output/upgrade-preferences-after.json"
+  cmp "$output/upgrade-preferences-before.json" "$output/upgrade-preferences-after.json"
+  printf '%s\n' 'installedUpdate=PASS; previous populated app state survived replacement and React Native reload' | tee "$output/upgrade-result.txt"
+fi
+if grep -Eq 'T3DreamService.*(FabricUIManager|Fabric dispatcher lifecycle|DeviceInfo lifecycle) is unavailable' "$output/logcat.txt" "$output/reload-logcat.txt"; then
   printf '%s\n' 'Dream React Native lifecycle compatibility check failed; inspect retained logs.' >&2
   exit 1
 fi

@@ -14,6 +14,9 @@ on:
       build_run:
         description: Optional build run containing dream-candidate-apk; overrides release
         default: ""
+      upgrade_release:
+        description: Optional previous Dream release to populate before updating this APK
+        default: ""
       failed_fixture:
         description: Include a synthetic failed session in the disposable server
         type: boolean
@@ -61,6 +64,12 @@ jobs:
         run: |
           gh run download "$BUILD_RUN" --name dream-candidate-apk --dir /tmp/dream-apk
           mv /tmp/dream-apk/app-release.apk /tmp/dream-apk/T3-Code-Dream.apk
+      - name: Download the previous Dream APK for an installed update
+        if: inputs.upgrade_release != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE: ${{ inputs.upgrade_release }}
+        run: gh release download "$RELEASE" --pattern T3-Code-Dream.apk --dir /tmp/dream-upgrade
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -73,6 +82,7 @@ jobs:
           T3_DREAM_FAILED_FIXTURE: ${{ inputs.failed_fixture && '1' || '0' }}
           T3_DREAM_STATUS_FIXTURE: ${{ inputs.status_fixture && '1' || '0' }}
           T3_DREAM_APP_ID: ${{ inputs.app_package }}
+          T3_DREAM_UPGRADE_FROM_APK: ${{ inputs.upgrade_release != '' && '/tmp/dream-upgrade/T3-Code-Dream.apk' || '' }}
         with:
           api-level: 35
           target: google_apis
@@ -91,4 +101,5 @@ jobs:
             /tmp/dream-startup-evidence/*.txt
             /tmp/dream-startup-evidence/*.json
             /tmp/dream-startup-evidence/capture/
+            /tmp/dream-startup-evidence/previous/
           if-no-files-found: warn
